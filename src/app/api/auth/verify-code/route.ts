@@ -1,6 +1,7 @@
 import twilio from 'twilio';
 import { createCustomToken, db } from '@/lib/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { getApps } from 'firebase-admin/app';
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID!,
@@ -10,6 +11,21 @@ const client = twilio(
 const VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID!;
 
 export async function POST(req: Request) {
+  // --- DIAGNOSTIC: log which Firebase project the Admin SDK is using ---
+  try {
+    const apps = getApps();
+    const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const parsed = serviceAccountRaw ? JSON.parse(serviceAccountRaw) : null;
+    console.log('[verify-code] FIREBASE_SERVICE_ACCOUNT_KEY present:', !!serviceAccountRaw);
+    console.log('[verify-code] service account project_id:', parsed?.project_id ?? 'MISSING');
+    console.log('[verify-code] service account client_email:', parsed?.client_email ?? 'MISSING');
+    console.log('[verify-code] Admin SDK initialized apps:', apps.map(a => a.name));
+    console.log('[verify-code] NEXT_PUBLIC_FIREBASE_PROJECT_ID:', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
+  } catch (diagErr) {
+    console.error('[verify-code] DIAGNOSTIC ERROR:', diagErr);
+  }
+  // --- END DIAGNOSTIC ---
+
   try {
     const body = await req.json();
     // Strip to only + and digits — invisible Unicode chars can cause "Invalid format"
