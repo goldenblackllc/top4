@@ -127,28 +127,19 @@ function ProfileContent() {
 
   async function loadProfile(userId: string, phoneNumber: string) {
     try {
-      // Timeout wrapper to prevent infinite loading if Firestore hangs
-      const result = await Promise.race([
-        (async () => {
-          const profile = await getProfile(userId);
-          const userEntries = await getEntries(userId);
-          return { profile, userEntries };
-        })(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore profile timeout')), 5000)
-        ),
-      ]);
+      const res = await fetch(`/api/profile?userId=${userId}`);
+      const data = await res.json();
 
-      if (result.profile) {
-        setDisplayName(result.profile.display_name);
-        setAvatarUrl(result.profile.avatar_url);
+      if (data.profile) {
+        setDisplayName(data.profile.display_name);
+        setAvatarUrl(data.profile.avatar_url);
       } else {
         setDisplayName('Somebody');
       }
 
-      if (result.userEntries.length > 0) {
+      if (data.entries?.length > 0) {
         const newEntries = { ...entries };
-        for (const e of result.userEntries) {
+        for (const e of data.entries) {
           if (CATEGORIES.includes(e.category)) {
             newEntries[e.category] = {
               items: e.items.length > 0 ? e.items : EMPTY_ITEMS.map((i) => ({ ...i })),

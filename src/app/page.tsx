@@ -6,7 +6,6 @@ import TasteCard from '@/components/TasteCard';
 import AdCard from '@/components/AdCard';
 import SkeletonCard from '@/components/SkeletonCard';
 import { DEMO_CARDS } from '@/lib/demo-data';
-import { getFeedCards } from '@/lib/firebase/firestore';
 import type { Top4Card } from '@/lib/types';
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -29,20 +28,15 @@ export default function Home() {
   async function loadFeed() {
     setLoading(true);
     try {
-      // Race the Firestore call against a timeout so the page never hangs
-      const feedCards = await Promise.race([
-        getFeedCards(30),
-        new Promise<Top4Card[]>((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore timeout')), 5000)
-        ),
-      ]);
-      if (feedCards.length > 0) {
-        setCards(feedCards);
+      const res = await fetch('/api/feed');
+      const data = await res.json();
+      if (data.cards?.length > 0) {
+        setCards(data.cards);
       } else {
         setCards(shuffleArray(DEMO_CARDS));
       }
     } catch (err) {
-      console.error('[Feed] Firestore load failed, using demo data:', err);
+      console.error('[Feed] Load failed:', err);
       setCards(shuffleArray(DEMO_CARDS));
     }
     setLoading(false);
