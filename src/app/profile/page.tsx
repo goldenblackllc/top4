@@ -140,8 +140,9 @@ function ProfileContent() {
       if (data.entries?.length > 0) {
         const newEntries = { ...entries };
         for (const e of data.entries) {
-          if (CATEGORIES.includes(e.category)) {
-            newEntries[e.category] = {
+          const cat = e.category as Category;
+          if (CATEGORIES.includes(cat)) {
+            newEntries[cat] = {
               items: e.items.length > 0 ? e.items : EMPTY_ITEMS.map((i) => ({ ...i })),
             };
           }
