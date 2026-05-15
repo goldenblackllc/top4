@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -13,9 +13,22 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase (prevent duplicate initialization in dev)
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+import type { Firestore } from 'firebase/firestore';
+
+let app;
+let db: Firestore;
+
+if (getApps().length > 0) {
+  app = getApp();
+  db = getFirestore(app);
+} else {
+  app = initializeApp(firebaseConfig);
+  db = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+  });
+}
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export { db };
 export const storage = getStorage(app);
 export default app;
