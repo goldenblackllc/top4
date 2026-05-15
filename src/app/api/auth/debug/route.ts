@@ -12,16 +12,40 @@ export async function GET() {
     parseError = (e as Error).message;
   }
 
-  // Try minting a test custom token and decoding the JWT
+  // Mint a test custom token
   let tokenClaims: Record<string, unknown> | null = null;
   let tokenError: string | null = null;
+  let exchangeResult: Record<string, unknown> | null = null;
+  let exchangeError: string | null = null;
+
   try {
     const testToken = await adminAuth.createCustomToken('debug-test-uid');
-    // Decode JWT payload (no verification, just read claims)
     const parts = testToken.split('.');
     const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString());
     const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
     tokenClaims = { header, payload, tokenLength: testToken.length };
+
+    // Now try to EXCHANGE the custom token for an ID token via the REST API
+    // This is exactly what the client SDK does with signInWithCustomToken
+    const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+    const res = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: testToken, returnSecureToken: true }),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      exchangeError = JSON.stringify(data.error || data);
+    } else {
+      exchangeResult = {
+        success: true,
+        idTokenLength: data.idToken?.length ?? 0,
+        refreshTokenLength: data.refreshToken?.length ?? 0,
+      };
+    }
   } catch (e) {
     tokenError = (e as Error).message;
   }
@@ -36,11 +60,17 @@ export async function GET() {
       parse_error: parseError,
       NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'NOT SET',
       NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? 'NOT SET',
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN_has_newline: (process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '').includes('\n'),
       NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'NOT SET',
+      NEXT_PUBLIC_FIREBASE_API_KEY_has_newline: (process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '').includes('\n'),
     },
     customToken: {
       claims: tokenClaims,
       error: tokenError,
+    },
+    tokenExchange: {
+      result: exchangeResult,
+      error: exchangeError,
     },
   });
 }
