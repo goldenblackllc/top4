@@ -127,18 +127,28 @@ function ProfileContent() {
 
   async function loadProfile(userId: string, phoneNumber: string) {
     try {
-      const profile = await getProfile(userId);
-      if (profile) {
-        setDisplayName(profile.display_name);
-        setAvatarUrl(profile.avatar_url);
+      // Timeout wrapper to prevent infinite loading if Firestore hangs
+      const result = await Promise.race([
+        (async () => {
+          const profile = await getProfile(userId);
+          const userEntries = await getEntries(userId);
+          return { profile, userEntries };
+        })(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Firestore profile timeout')), 5000)
+        ),
+      ]);
+
+      if (result.profile) {
+        setDisplayName(result.profile.display_name);
+        setAvatarUrl(result.profile.avatar_url);
       } else {
         setDisplayName('Somebody');
       }
 
-      const userEntries = await getEntries(userId);
-      if (userEntries.length > 0) {
+      if (result.userEntries.length > 0) {
         const newEntries = { ...entries };
-        for (const e of userEntries) {
+        for (const e of result.userEntries) {
           if (CATEGORIES.includes(e.category)) {
             newEntries[e.category] = {
               items: e.items.length > 0 ? e.items : EMPTY_ITEMS.map((i) => ({ ...i })),
@@ -149,6 +159,7 @@ function ProfileContent() {
       }
     } catch (err) {
       console.error('Failed to load profile:', err);
+      setDisplayName('Somebody');
     }
     setLoading(false);
   }

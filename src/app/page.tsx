@@ -29,14 +29,20 @@ export default function Home() {
   async function loadFeed() {
     setLoading(true);
     try {
-      const feedCards = await getFeedCards(30);
+      // Race the Firestore call against a timeout so the page never hangs
+      const feedCards = await Promise.race([
+        getFeedCards(30),
+        new Promise<Top4Card[]>((_, reject) =>
+          setTimeout(() => reject(new Error('Firestore timeout')), 5000)
+        ),
+      ]);
       if (feedCards.length > 0) {
-        // Feed is already ordered by the multi-bucket algorithm
         setCards(feedCards);
       } else {
         setCards(shuffleArray(DEMO_CARDS));
       }
-    } catch {
+    } catch (err) {
+      console.error('[Feed] Firestore load failed, using demo data:', err);
       setCards(shuffleArray(DEMO_CARDS));
     }
     setLoading(false);
