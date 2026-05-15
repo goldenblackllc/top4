@@ -93,6 +93,7 @@ export default function Home() {
       >
         {[
           { emoji: '🎬', label: 'Movies', color: 'var(--color-movies)', glow: 'var(--color-movies-glow)' },
+          { emoji: '📺', label: 'TV Shows', color: 'var(--color-tv)', glow: 'var(--color-tv-glow)' },
           { emoji: '🎵', label: 'Artists', color: 'var(--color-artists)', glow: 'var(--color-artists-glow)' },
           { emoji: '📚', label: 'Books', color: 'var(--color-books)', glow: 'var(--color-books-glow)' },
         ].map((cat) => (
