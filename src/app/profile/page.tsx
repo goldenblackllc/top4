@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
-import { getProfile, upsertProfile, getEntries, upsertEntry, getLikedCards } from '@/lib/firebase/firestore';
+import { upsertProfile, upsertEntry, getLikedCards } from '@/lib/firebase/firestore';
 import { uploadAvatar } from '@/lib/firebase/storage';
 import Header from '@/components/Header';
 import DraggableList from '@/components/DraggableList';

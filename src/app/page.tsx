@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import TasteCard from '@/components/TasteCard';
 import AdCard from '@/components/AdCard';
 import SkeletonCard from '@/components/SkeletonCard';
+import Leaderboard from '@/components/Leaderboard';
 import { DEMO_CARDS } from '@/lib/demo-data';
 import type { Top4Card } from '@/lib/types';
 
@@ -116,6 +117,9 @@ export default function Home() {
           </span>
         ))}
       </div>
+
+      {/* Leaderboard */}
+      <Leaderboard />
 
       {/* Feed */}
       <main
