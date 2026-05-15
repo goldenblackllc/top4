@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { likeEntry, unlikeEntry, hasLiked, getProfile } from '@/lib/firebase/firestore';
@@ -80,37 +81,52 @@ export default function TasteCard({ card, index = 0 }: TasteCardProps) {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {profile.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt={profile.display_name}
-                className="avatar"
-                width={40}
-                height={40}
-                style={{ width: 40, height: 40 }}
-              />
-            ) : (
-              <div
+            <Link
+              href={`/u/${entry.user_id}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'inherit' }}
+            >
+              {profile.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={profile.display_name}
+                  className="avatar"
+                  width={40}
+                  height={40}
+                  style={{ width: 40, height: 40 }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${config.color}88, ${config.color}44)`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: 'white',
+                    flexShrink: 0,
+                  }}
+                >
+                  {profile.display_name?.charAt(0)?.toUpperCase() || '?'}
+                </div>
+              )}
+              <h3
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: '50%',
-                  background: `linear-gradient(135deg, ${config.color}88, ${config.color}44)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: 700,
-                  color: 'white',
-                  flexShrink: 0,
+                  margin: 0,
+                  lineHeight: 1.3,
+                  transition: 'color 0.15s',
                 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--color-accent)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'inherit'; }}
               >
-                {profile.display_name?.charAt(0)?.toUpperCase() || '?'}
-              </div>
-            )}
-            <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, lineHeight: 1.3 }}>
-              {profile.display_name}
-            </h3>
+                {profile.display_name}
+              </h3>
+            </Link>
           </div>
 
           {/* Category pill */}
