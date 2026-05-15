@@ -22,12 +22,17 @@ export default function SkeletonCard() {
         </div>
 
         {/* Items skeleton */}
-        {[0, 1, 2, 3].map((j) => (
+        {([
+          { title: '75%', sub: '45%' },
+          { title: '60%', sub: '38%' },
+          { title: '82%', sub: '52%' },
+          { title: '68%', sub: '41%' },
+        ]).map((widths, j) => (
           <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px' }}>
             <div className="skeleton" style={{ width: 24, height: 24, borderRadius: 6, flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
-              <div className="skeleton" style={{ width: `${55 + Math.random() * 35}%`, height: 14, marginBottom: 4 }} />
-              <div className="skeleton" style={{ width: `${30 + Math.random() * 25}%`, height: 10 }} />
+              <div className="skeleton" style={{ width: widths.title, height: 14, marginBottom: 4 }} />
+              <div className="skeleton" style={{ width: widths.sub, height: 10 }} />
             </div>
           </div>
         ))}

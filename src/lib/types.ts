@@ -21,6 +21,7 @@ export interface Top4Entry {
   category: Category;
   items: Top4Item[];
   updated_at: string;
+  like_count?: number;
 }
 
 /** A single card in the feed: one user + one category */
