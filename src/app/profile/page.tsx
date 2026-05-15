@@ -132,7 +132,7 @@ function ProfileContent() {
         setDisplayName(profile.display_name);
         setAvatarUrl(profile.avatar_url);
       } else {
-        setDisplayName(phoneNumber ? `…${phoneNumber.slice(-4)}` : '');
+        setDisplayName('Somebody');
       }
 
       const userEntries = await getEntries(userId);

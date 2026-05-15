@@ -129,7 +129,7 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
             </span>
 
             {/* Search input */}
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <SearchInput
                 category={category}
                 rank={item.rank}

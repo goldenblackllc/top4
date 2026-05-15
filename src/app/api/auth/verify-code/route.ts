@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     const profileSnap = await profileRef.get();
     if (!profileSnap.exists) {
       await profileRef.set({
-        display_name: phone.slice(-4),
+        display_name: 'Somebody',
         avatar_url: null,
         created_at: FieldValue.serverTimestamp(),
         updated_at: FieldValue.serverTimestamp(),
