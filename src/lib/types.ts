@@ -1,4 +1,4 @@
-export type Category = 'movies' | 'artists' | 'books';
+export type Category = 'movies' | 'tv' | 'artists' | 'books';
 
 export interface Top4Item {
   rank: number; // 1-4
@@ -38,7 +38,7 @@ export interface SearchResult {
   image_url?: string;
 }
 
-export const CATEGORIES: Category[] = ['movies', 'artists', 'books'];
+export const CATEGORIES: Category[] = ['movies', 'tv', 'artists', 'books'];
 
 export const CATEGORY_CONFIG: Record<Category, {
   label: string;
@@ -55,6 +55,14 @@ export const CATEGORY_CONFIG: Record<Category, {
     gradient: 'linear-gradient(135deg, #f59e0b22, #d9770622)',
     bgClass: 'category-movies',
     searchPlaceholder: 'Search movies...',
+  },
+  tv: {
+    label: 'TV Shows',
+    emoji: '📺',
+    color: '#ec4899',
+    gradient: 'linear-gradient(135deg, #ec489922, #9d174d22)',
+    bgClass: 'category-tv',
+    searchPlaceholder: 'Search TV shows...',
   },
   artists: {
     label: 'Artists',

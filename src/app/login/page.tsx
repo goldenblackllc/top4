@@ -71,7 +71,7 @@ export default function LoginPage() {
       // Sign into Firebase with the custom token
       await signInWithCustomToken(auth, data.token);
 
-      router.push('/profile');
+      router.push('/');
     } catch (err) {
       console.error('Login error:', err);
       setStatus('error');

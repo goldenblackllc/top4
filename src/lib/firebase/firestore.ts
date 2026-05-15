@@ -66,7 +66,7 @@ function entryDocId(userId: string, category: Category) {
 
 export async function getEntries(userId: string): Promise<Top4Entry[]> {
   const entries: Top4Entry[] = [];
-  for (const cat of ['movies', 'artists', 'books'] as Category[]) {
+  for (const cat of ['movies', 'tv', 'artists', 'books'] as Category[]) {
     const snap = await getDoc(doc(db, 'top4_entries', entryDocId(userId, cat)));
     if (snap.exists()) {
       const data = snap.data();
@@ -94,41 +94,125 @@ export async function upsertEntry(userId: string, category: Category, items: Top
 }
 
 // ============================================
-// Feed
+// Feed — Multi-bucket blended algorithm
 // ============================================
 
+type RawEntry = {
+  id: string;
+  user_id: string;
+  category: Category;
+  items: Top4Item[];
+  updated_at: string;
+  like_count: number;
+};
+
+/** Parse a Firestore doc into a RawEntry, or null if it has no real items. */
+function parseEntryDoc(d: { id: string; data: () => Record<string, unknown> }): RawEntry | null {
+  const data = d.data();
+  const items = data.items as Top4Item[] | undefined;
+  if (!items?.length || !items.some((i) => i.title)) return null;
+  return {
+    id: d.id,
+    user_id: data.user_id as string,
+    category: data.category as Category,
+    items,
+    updated_at: (data.updated_at as { toDate?: () => Date })?.toDate?.()?.toISOString() || new Date().toISOString(),
+    like_count: (data.like_count as number) || 0,
+  };
+}
+
+/**
+ * Fetch feed cards using a multi-bucket strategy:
+ *   🔥 Trending  — highest like_count
+ *   ✨ Fresh     — most recently updated
+ *   📚 Catalog   — oldest entries (resurface hidden gems)
+ *
+ * Results are deduplicated, then interleaved with diversity
+ * rules so consecutive cards aren't from the same user or category.
+ */
 export async function getFeedCards(maxCards: number = 30): Promise<Top4Card[]> {
-  const q = query(collection(db, 'top4_entries'), limit(maxCards));
-  const snap = await getDocs(q);
+  const entriesCol = collection(db, 'top4_entries');
+  const bucketSize = Math.ceil(maxCards * 0.45); // fetch a little more per bucket for dedup headroom
 
-  if (snap.empty) return [];
+  // Fire all three queries in parallel
+  const [trendingSnap, freshSnap, catalogSnap] = await Promise.all([
+    getDocs(query(entriesCol, orderBy('like_count', 'desc'), limit(bucketSize))),
+    getDocs(query(entriesCol, orderBy('updated_at', 'desc'), limit(bucketSize))),
+    getDocs(query(entriesCol, orderBy('updated_at', 'asc'), limit(bucketSize))),
+  ]);
 
-  const userIds = new Set<string>();
-  const rawEntries: { user_id: string; category: Category; items: Top4Item[]; updated_at: string; id: string; like_count: number }[] = [];
+  // Parse & deduplicate across buckets
+  const seen = new Set<string>();
+  const trending: RawEntry[] = [];
+  const fresh: RawEntry[] = [];
+  const catalog: RawEntry[] = [];
 
-  snap.forEach((d) => {
-    const data = d.data();
-    if (data.items?.length > 0 && data.items.some((i: Top4Item) => i.title)) {
-      userIds.add(data.user_id);
-      rawEntries.push({
-        id: d.id,
-        user_id: data.user_id,
-        category: data.category,
-        items: data.items,
-        updated_at: data.updated_at?.toDate?.()?.toISOString() || new Date().toISOString(),
-        like_count: data.like_count || 0,
-      });
-    }
-  });
-
-  const profiles = new Map<string, UserProfile>();
-  for (const uid of userIds) {
-    const profile = await getProfile(uid);
-    if (profile) profiles.set(uid, profile);
+  for (const d of trendingSnap.docs) {
+    const e = parseEntryDoc(d);
+    if (e && !seen.has(e.id)) { seen.add(e.id); trending.push(e); }
+  }
+  for (const d of freshSnap.docs) {
+    const e = parseEntryDoc(d);
+    if (e && !seen.has(e.id)) { seen.add(e.id); fresh.push(e); }
+  }
+  for (const d of catalogSnap.docs) {
+    const e = parseEntryDoc(d);
+    if (e && !seen.has(e.id)) { seen.add(e.id); catalog.push(e); }
   }
 
+  // Interleave pattern: T F T C F C ... (weighted ~35/35/30)
+  const pattern = ['trending', 'fresh', 'trending', 'catalog', 'fresh', 'catalog'] as const;
+  const queues = { trending: [...trending], fresh: [...fresh], catalog: [...catalog] };
+  const interleaved: RawEntry[] = [];
+  let pi = 0;
+
+  while (interleaved.length < maxCards) {
+    const bucket = pattern[pi % pattern.length];
+    pi++;
+
+    // Try the intended bucket first, then fall back to others
+    let entry: RawEntry | undefined;
+    if (queues[bucket].length > 0) {
+      entry = queues[bucket].shift();
+    } else {
+      // Drain whichever bucket still has entries
+      for (const key of ['fresh', 'trending', 'catalog'] as const) {
+        if (queues[key].length > 0) { entry = queues[key].shift(); break; }
+      }
+    }
+    if (!entry) break; // all buckets exhausted
+    interleaved.push(entry);
+  }
+
+  // Diversity pass: avoid consecutive same-user or same-category cards
+  // Simple bubble-swap: if card[i] violates, swap with the nearest non-violating card ahead
+  for (let i = 1; i < interleaved.length; i++) {
+    const prev = interleaved[i - 1];
+    const curr = interleaved[i];
+    if (curr.user_id === prev.user_id || curr.category === prev.category) {
+      // Find the nearest swap candidate
+      for (let j = i + 1; j < Math.min(i + 5, interleaved.length); j++) {
+        if (interleaved[j].user_id !== prev.user_id && interleaved[j].category !== prev.category) {
+          [interleaved[i], interleaved[j]] = [interleaved[j], interleaved[i]];
+          break;
+        }
+      }
+    }
+  }
+
+  // Batch-load profiles
+  const userIds = new Set(interleaved.map((e) => e.user_id));
+  const profiles = new Map<string, UserProfile>();
+  await Promise.all(
+    [...userIds].map(async (uid) => {
+      const p = await getProfile(uid);
+      if (p) profiles.set(uid, p);
+    })
+  );
+
+  // Assemble cards
   const cards: Top4Card[] = [];
-  for (const entry of rawEntries) {
+  for (const entry of interleaved) {
     const profile = profiles.get(entry.user_id);
     if (profile) cards.push({ profile, entry });
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
@@ -74,7 +74,7 @@ function validateName(name: string): string | null {
   return null;
 }
 
-export default function ProfilePage() {
+function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,6 +91,7 @@ export default function ProfilePage() {
 
   const [entries, setEntries] = useState<Record<Category, { items: Top4Item[] }>>({
     movies: { items: EMPTY_ITEMS.map((i) => ({ ...i })) },
+    tv: { items: EMPTY_ITEMS.map((i) => ({ ...i })) },
     artists: { items: EMPTY_ITEMS.map((i) => ({ ...i })) },
     books: { items: EMPTY_ITEMS.map((i) => ({ ...i })) },
   });
@@ -439,5 +440,13 @@ export default function ProfilePage() {
       {/* Toast */}
       {toast && <div className="toast">{toast}</div>}
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense>
+      <ProfileContent />
+    </Suspense>
   );
 }

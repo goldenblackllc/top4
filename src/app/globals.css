@@ -15,6 +15,8 @@
 
   --color-movies: #f59e0b;
   --color-movies-glow: #f59e0b33;
+  --color-tv: #ec4899;
+  --color-tv-glow: #ec489933;
   --color-artists: #a78bfa;
   --color-artists-glow: #a78bfa33;
   --color-books: #2dd4bf;
@@ -141,6 +143,11 @@ body {
   border-left: 3px solid var(--color-movies);
 }
 
+.category-tv {
+  background: linear-gradient(135deg, #ec489908, #ec489904);
+  border-left: 3px solid var(--color-tv);
+}
+
 .category-artists {
   background: linear-gradient(135deg, #a78bfa08, #a78bfa04);
   border-left: 3px solid var(--color-artists);
@@ -167,6 +174,11 @@ body {
 .rank-badge-movies {
   background: var(--color-movies-glow);
   color: var(--color-movies);
+}
+
+.rank-badge-tv {
+  background: var(--color-tv-glow);
+  color: var(--color-tv);
 }
 
 .rank-badge-artists {

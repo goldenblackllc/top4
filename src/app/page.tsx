@@ -31,7 +31,8 @@ export default function Home() {
     try {
       const feedCards = await getFeedCards(30);
       if (feedCards.length > 0) {
-        setCards(shuffleArray(feedCards));
+        // Feed is already ordered by the multi-bucket algorithm
+        setCards(feedCards);
       } else {
         setCards(shuffleArray(DEMO_CARDS));
       }
