@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { use } from 'react';
 import { getProfile, getEntries } from '@/lib/firebase/firestore';
-import { CATEGORY_CONFIG, type Top4Entry, type UserProfile } from '@/lib/types';
+import { getCategoryConfig, type Top4Entry, type UserProfile } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
 import Header from '@/components/Header';
 
 export default function UserProfilePage({
@@ -13,6 +14,8 @@ export default function UserProfilePage({
   params: Promise<{ userId: string }>;
 }) {
   const { userId } = use(params);
+  const { t, locale } = useLocale();
+  const categoryConfig = getCategoryConfig(locale);
 
   const [profile, setProfile] = useState<UserProfile | null | 'not-found'>('not-found');
   const [entries, setEntries] = useState<Top4Entry[]>([]);
@@ -51,12 +54,12 @@ export default function UserProfilePage({
         <Header />
         <div style={{ maxWidth: 540, margin: '80px auto', padding: '0 20px', textAlign: 'center' }}>
           <p style={{ fontSize: 48, marginBottom: 16 }}>👤</p>
-          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>User not found</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{t('userProfile.notFound')}</h1>
           <p style={{ color: 'var(--color-text-muted)', marginBottom: 24 }}>
-            This profile doesn&apos;t exist or has been removed.
+            {t('userProfile.notFoundDesc')}
           </p>
           <Link href="/" style={{ color: 'var(--color-accent)', textDecoration: 'none', fontWeight: 600 }}>
-            ← Back to feed
+            {t('userProfile.backToFeed')}
           </Link>
         </div>
       </div>
@@ -107,19 +110,22 @@ export default function UserProfilePage({
             {profile.display_name}
           </h1>
           <p style={{ fontSize: 13, color: 'var(--color-text-dim)' }}>
-            {entries.length} list{entries.length !== 1 ? 's' : ''} · top4
+            {t('userProfile.listCount', {
+              count: String(entries.length),
+              plural: entries.length !== 1 ? 's' : '',
+            })} · top4
           </p>
         </div>
 
         {/* Entries */}
         {entries.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-dim)' }}>
-            <p style={{ fontSize: 15 }}>No lists yet</p>
+            <p style={{ fontSize: 15 }}>{t('userProfile.noLists')}</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {entries.map((entry) => (
-              <EntryCard key={entry.id} entry={entry} />
+              <EntryCard key={entry.id} entry={entry} categoryConfig={categoryConfig} />
             ))}
           </div>
         )}
@@ -129,7 +135,7 @@ export default function UserProfilePage({
             href="/"
             style={{ fontSize: 13, color: 'var(--color-text-dim)', textDecoration: 'none', fontWeight: 600 }}
           >
-            ← Back to feed
+            {t('userProfile.backToFeed')}
           </Link>
         </div>
       </div>
@@ -137,8 +143,8 @@ export default function UserProfilePage({
   );
 }
 
-function EntryCard({ entry }: { entry: Top4Entry }) {
-  const config = CATEGORY_CONFIG[entry.category];
+function EntryCard({ entry, categoryConfig }: { entry: Top4Entry; categoryConfig: ReturnType<typeof getCategoryConfig> }) {
+  const config = categoryConfig[entry.category];
   const filledItems = entry.items.filter((i) => i.title);
 
   return (

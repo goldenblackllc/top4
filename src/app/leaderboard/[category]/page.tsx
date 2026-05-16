@@ -6,16 +6,26 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import TasteCard from '@/components/TasteCard';
 import SkeletonCard from '@/components/SkeletonCard';
-import { CATEGORY_CONFIG, CATEGORIES, type Category } from '@/lib/types';
+import { getCategoryConfig, CATEGORIES, type Category } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
 import type { Top4Card } from '@/lib/types';
 
 const MEDAL_EMOJI = ['🥇', '🥈', '🥉', '4', '5'] as const;
-const MEDAL_LABELS = ['1st Place', '2nd Place', '3rd Place', '#4', '#5'] as const;
 
 export default function LeaderboardPage() {
   const params = useParams();
   const category = params.category as Category;
-  const config = CATEGORY_CONFIG[category];
+  const { t, locale } = useLocale();
+  const allConfig = getCategoryConfig(locale);
+  const config = allConfig[category];
+
+  const MEDAL_LABELS = [
+    t('leaderboard.1stPlace'),
+    t('leaderboard.2ndPlace'),
+    t('leaderboard.3rdPlace'),
+    '#4',
+    '#5',
+  ] as const;
 
   const [cards, setCards] = useState<Top4Card[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +37,7 @@ export default function LeaderboardPage() {
     if (!isValid) return;
     async function load() {
       try {
-        const res = await fetch(`/api/leaderboard?category=${category}`);
+        const res = await fetch(`/api/leaderboard?category=${category}&locale=${locale}`);
         const data = await res.json();
         setCards(data.cards || []);
       } catch (err) {
@@ -36,15 +46,15 @@ export default function LeaderboardPage() {
       setLoading(false);
     }
     load();
-  }, [category, isValid]);
+  }, [category, isValid, locale]);
 
   if (!isValid) {
     return (
       <div style={{ minHeight: '100dvh' }}>
         <Header />
         <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Category not found</h1>
-          <Link href="/" className="btn-primary">Back to Feed</Link>
+          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>{t('leaderboard.categoryNotFound')}</h1>
+          <Link href="/" className="btn-primary">{t('leaderboard.backToFeed')}</Link>
         </div>
       </div>
     );
@@ -90,7 +100,7 @@ export default function LeaderboardPage() {
           }}
         >
           {config.label}{' '}
-          <span style={{ color: config.color }}>Leaderboard</span>
+          <span style={{ color: config.color }}>{t('leaderboard.pageTitle')}</span>
         </h1>
         <p
           style={{
@@ -101,7 +111,7 @@ export default function LeaderboardPage() {
             margin: '0 auto 20px',
           }}
         >
-          The most loved {config.label.toLowerCase()} lists, ranked by community likes.
+          {t('leaderboard.mostLoved', { category: config.label.toLowerCase() })}
         </p>
       </section>
 
@@ -117,7 +127,7 @@ export default function LeaderboardPage() {
         className="animate-fade-in"
       >
         {CATEGORIES.map((cat) => {
-          const c = CATEGORY_CONFIG[cat];
+          const c = allConfig[cat];
           const isActive = cat === category;
           return (
             <Link
@@ -172,7 +182,7 @@ export default function LeaderboardPage() {
           >
             <div style={{ fontSize: 40, marginBottom: 12 }}>🏆</div>
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-              No leaders yet
+              {t('leaderboard.noLeadersYet')}
             </h2>
             <p
               style={{
@@ -183,10 +193,10 @@ export default function LeaderboardPage() {
                 margin: '0 auto 20px',
               }}
             >
-              Be the first to like a {config.label.toLowerCase()} list and crown its owner!
+              {t('leaderboard.beFirst', { category: config.label.toLowerCase() })}
             </p>
             <Link href="/" className="btn-primary">
-              Browse the Feed
+              {t('leaderboard.browseFeed')}
             </Link>
           </div>
         ) : (
@@ -252,7 +262,7 @@ export default function LeaderboardPage() {
                       border: `1px solid ${config.color}25`,
                     }}
                   >
-                    👑 Top List
+                    {t('leaderboard.topList')}
                   </span>
                 )}
               </div>
@@ -280,7 +290,7 @@ export default function LeaderboardPage() {
           onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-dim)'; }}
         >
-          ← Back to Feed
+          {t('leaderboard.backToFeed')}
         </Link>
       </div>
 

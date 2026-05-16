@@ -36,12 +36,15 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
 export async function upsertProfile(userId: string, data: {
   display_name: string;
   avatar_url: string | null;
+  locale?: string;
 }) {
-  await setDoc(doc(db, 'profiles', userId), {
+  const payload: Record<string, unknown> = {
     display_name: data.display_name,
     avatar_url: data.avatar_url,
     updated_at: serverTimestamp(),
-  }, { merge: true });
+  };
+  if (data.locale) payload.locale = data.locale;
+  await setDoc(doc(db, 'profiles', userId), payload, { merge: true });
 }
 
 export async function ensureProfile(userId: string, phoneNumber: string) {
@@ -83,14 +86,16 @@ export async function getEntries(userId: string): Promise<Top4Entry[]> {
   return entries;
 }
 
-export async function upsertEntry(userId: string, category: Category, items: Top4Item[]) {
+export async function upsertEntry(userId: string, category: Category, items: Top4Item[], locale?: string) {
   const docId = entryDocId(userId, category);
-  await setDoc(doc(db, 'top4_entries', docId), {
+  const payload: Record<string, unknown> = {
     user_id: userId,
     category,
     items,
     updated_at: serverTimestamp(),
-  }, { merge: true });
+  };
+  if (locale) payload.locale = locale;
+  await setDoc(doc(db, 'top4_entries', docId), payload, { merge: true });
 }
 
 // ============================================

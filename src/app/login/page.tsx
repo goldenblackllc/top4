@@ -5,9 +5,11 @@ import { signInWithCustomToken } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useLocale } from '@/lib/i18n';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useLocale();
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [formattedPhone, setFormattedPhone] = useState('');
@@ -33,7 +35,7 @@ export default function LoginPage() {
 
       if (!res.ok) {
         setStatus('error');
-        setErrorMsg(data.error || 'Failed to send code');
+        setErrorMsg(data.error || t('login.failedSendCode'));
         return;
       }
 
@@ -42,7 +44,7 @@ export default function LoginPage() {
       setStatus('idle');
     } catch {
       setStatus('error');
-      setErrorMsg('Failed to send code. Please try again.');
+      setErrorMsg(t('login.failedSendRetry'));
     }
   };
 
@@ -64,7 +66,7 @@ export default function LoginPage() {
 
       if (!res.ok) {
         setStatus('error');
-        setErrorMsg(data.error || 'Invalid code');
+        setErrorMsg(data.error || t('login.invalidCode'));
         return;
       }
 
@@ -75,7 +77,7 @@ export default function LoginPage() {
     } catch (err) {
       console.error('Login error:', err);
       setStatus('error');
-      setErrorMsg(err instanceof Error ? err.message : 'Verification failed. Please try again.');
+      setErrorMsg(err instanceof Error ? err.message : t('login.verificationFailed'));
     }
   };
 
@@ -101,7 +103,7 @@ export default function LoginPage() {
             <span className="logo-text logo-accent" style={{ fontSize: 32 }}>4</span>
           </Link>
           <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginTop: 8 }}>
-            Sign in with your phone number
+            {t('login.subtitle')}
           </p>
         </div>
 
@@ -111,7 +113,7 @@ export default function LoginPage() {
               htmlFor="phone-input"
               style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6, display: 'block' }}
             >
-              Phone number
+              {t('login.phoneLabel')}
             </label>
             <input
               id="phone-input"
@@ -137,11 +139,11 @@ export default function LoginPage() {
               disabled={status === 'loading'}
               style={{ width: '100%', justifyContent: 'center' }}
             >
-              {status === 'loading' ? 'Sending...' : 'Send Code'}
+              {status === 'loading' ? t('login.sending') : t('login.sendCode')}
             </button>
 
             <p style={{ fontSize: 12, color: 'var(--color-text-dim)', textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
-              We&apos;ll text you a verification code.
+              {t('login.smsNotice')}
             </p>
           </form>
         )}
@@ -159,14 +161,14 @@ export default function LoginPage() {
                 color: 'var(--color-text-muted)',
               }}
             >
-              Code sent to <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formattedPhone}</span>
+              {t('login.codeSentTo')} <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formattedPhone}</span>
             </div>
 
             <label
               htmlFor="code-input"
               style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6, display: 'block' }}
             >
-              Verification code
+              {t('login.codeLabel')}
             </label>
             <input
               id="code-input"
@@ -200,7 +202,7 @@ export default function LoginPage() {
               disabled={status === 'loading'}
               style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }}
             >
-              {status === 'loading' ? 'Verifying...' : 'Verify'}
+              {status === 'loading' ? t('login.verifying') : t('login.verify')}
             </button>
 
             <button
@@ -209,14 +211,14 @@ export default function LoginPage() {
               onClick={() => { setStep('phone'); setCode(''); setStatus('idle'); setErrorMsg(''); }}
               style={{ width: '100%', justifyContent: 'center' }}
             >
-              Use a different number
+              {t('login.differentNumber')}
             </button>
           </form>
         )}
       </div>
 
       <Link href="/" style={{ marginTop: 24, fontSize: 13, color: 'var(--color-text-dim)', textDecoration: 'none' }}>
-        ← Back to feed
+        {t('login.backToFeed')}
       </Link>
     </div>
   );

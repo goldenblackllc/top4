@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { getProfile } from '@/lib/firebase/firestore';
-import { CATEGORY_CONFIG, type Top4Card } from '@/lib/types';
+import { getCategoryConfig, type Top4Card } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
 
 interface TasteCardProps {
   card: Top4Card;
@@ -13,8 +14,10 @@ interface TasteCardProps {
 }
 
 export default function TasteCard({ card, index = 0 }: TasteCardProps) {
+  const { t, locale } = useLocale();
+  const allConfig = getCategoryConfig(locale);
   const { profile, entry } = card;
-  const config = CATEGORY_CONFIG[entry.category];
+  const config = allConfig[entry.category];
 
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(entry.like_count || 0);
@@ -244,7 +247,7 @@ export default function TasteCard({ card, index = 0 }: TasteCardProps) {
           <button
             onClick={handleLike}
             disabled={!currentUserId || liking}
-            title={currentUserId ? (liked ? 'Unlike' : 'Like this list') : 'Sign in to like'}
+            title={currentUserId ? (liked ? t('tasteCard.unlike') : t('tasteCard.like')) : t('tasteCard.signInToLike')}
             style={{
               display: 'flex',
               alignItems: 'center',

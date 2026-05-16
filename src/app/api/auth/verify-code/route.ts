@@ -2,6 +2,18 @@ import twilio from 'twilio';
 import { createCustomToken, db } from '@/lib/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
+/** Extract primary language code from Accept-Language header (e.g. 'es-MX,es;q=0.9' → 'es') */
+function parseLocale(header: string | null): string {
+  if (!header) return 'en';
+  const primary = header.split(',')[0]?.split(';')[0]?.trim().toLowerCase();
+  if (!primary) return 'en';
+  // Extract the language portion (before any region subtag)
+  const lang = primary.split('-')[0];
+  // Only accept known 2-letter language codes we support
+  const supported = ['en', 'es'];
+  return supported.includes(lang) ? lang : 'en';
+}
+
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID!,
   process.env.TWILIO_AUTH_TOKEN!
@@ -33,12 +45,14 @@ export async function POST(req: Request) {
     const { uid, customToken } = await createCustomToken(phone);
 
     // 3. Ensure a Top4 profile exists (server-side, bypasses Firestore rules)
+    const locale = parseLocale(req.headers.get('accept-language'));
     const profileRef = db.collection('profiles').doc(uid);
     const profileSnap = await profileRef.get();
     if (!profileSnap.exists) {
       await profileRef.set({
         display_name: 'Somebody',
         avatar_url: null,
+        locale,
         created_at: FieldValue.serverTimestamp(),
         updated_at: FieldValue.serverTimestamp(),
       });

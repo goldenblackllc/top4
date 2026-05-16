@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react';
 import type { Category, SearchResult } from '@/lib/types';
-import { CATEGORY_CONFIG } from '@/lib/types';
+import { getCategoryConfig } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
 import SearchInput from './SearchInput';
 import type { Top4Item } from '@/lib/types';
 
@@ -13,7 +14,8 @@ interface DraggableListProps {
 }
 
 export default function DraggableList({ category, items, onChange }: DraggableListProps) {
-  const config = CATEGORY_CONFIG[category];
+  const { t, locale } = useLocale();
+  const config = getCategoryConfig(locale)[category];
   const dragIndexRef = useRef<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -207,7 +209,7 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
                 gap: 3,
                 touchAction: 'none',
               }}
-              title="Drag to reorder"
+              title={t('drag.reorder')}
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <circle cx="4" cy="3" r="1.2" fill="currentColor" />
@@ -242,7 +244,7 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
         );
       })}
       <p style={{ fontSize: 11, color: 'var(--color-text-dim)', marginTop: 2, textAlign: 'center' }}>
-        ⠿ Drag to reorder
+        ⠿ {t('drag.reorder')}
       </p>
     </div>
   );

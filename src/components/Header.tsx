@@ -10,9 +10,14 @@ import {
   markNotificationsRead,
   type Notification,
 } from '@/lib/firebase/firestore';
-import { CATEGORY_CONFIG } from '@/lib/types';
+import { getCategoryConfig } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
+import LanguageSwitcher from './LanguageSwitcher';
 
 export default function Header() {
+  const { t, locale } = useLocale();
+  const categoryConfig = getCategoryConfig(locale);
+
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -103,6 +108,9 @@ export default function Header() {
         </Link>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Language Switcher */}
+          <LanguageSwitcher />
+
           {loading ? (
             <div className="skeleton" style={{ width: 80, height: 36 }} />
           ) : user ? (
@@ -126,7 +134,7 @@ export default function Header() {
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text)'; }}
                   onMouseLeave={(e) => { if (!bellOpen) e.currentTarget.style.color = 'var(--color-text-dim)'; }}
-                  title="Notifications"
+                  title={t('header.notifications')}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -173,11 +181,11 @@ export default function Header() {
                     }}
                   >
                     <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-dim)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '6px 10px 10px' }}>
-                      Notifications
+                      {t('header.notifications')}
                     </p>
                     {notifications.length === 0 ? (
                       <p style={{ fontSize: 13, color: 'var(--color-text-dim)', padding: '8px 10px 10px', textAlign: 'center' }}>
-                        No notifications yet
+                        {t('header.noNotifications')}
                       </p>
                     ) : (
                       notifications.map((n) => (
@@ -195,11 +203,12 @@ export default function Header() {
                               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                             </svg>
                             <p style={{ fontSize: 13, color: 'var(--color-text)', margin: 0, lineHeight: 1.4 }}>
-                              <strong>{n.from_display_name}</strong> liked your {CATEGORY_CONFIG[n.category]?.label} list
+                              <strong>{n.from_display_name}</strong> {t('header.likedYourList')} {categoryConfig[n.category]?.label}
+                              {locale === 'en' ? ` ${t('header.list')}` : ''}
                             </p>
                           </div>
                           <p style={{ fontSize: 11, color: 'var(--color-text-dim)', margin: '3px 0 0 21px' }}>
-                            {n.created_at ? new Date(n.created_at).toLocaleDateString() : ''}
+                            {n.created_at ? new Date(n.created_at).toLocaleDateString(locale === 'es' ? 'es-ES' : 'en-US') : ''}
                           </p>
                         </div>
                       ))
@@ -243,7 +252,7 @@ export default function Header() {
                       onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-bg-input)'; e.currentTarget.style.color = 'var(--color-text)'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-muted)'; }}
                     >
-                      My Top 4s
+                      {t('header.myTop4s')}
                     </Link>
                     <Link
                       href="/profile?tab=liked"
@@ -252,7 +261,7 @@ export default function Header() {
                       onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-bg-input)'; e.currentTarget.style.color = 'var(--color-text)'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-muted)'; }}
                     >
-                      ♥ Liked Lists
+                      {t('header.likedLists')}
                     </Link>
                     <button
                       onClick={handleSignOut}
@@ -260,7 +269,7 @@ export default function Header() {
                       onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-bg-input)'; e.currentTarget.style.color = '#f87171'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-muted)'; }}
                     >
-                      Sign Out
+                      {t('header.signOut')}
                     </button>
                   </div>
                 )}
@@ -268,7 +277,7 @@ export default function Header() {
             </>
           ) : (
             <Link href="/login">
-              <button className="btn-primary" id="login-button">Sign In</button>
+              <button className="btn-primary" id="login-button">{t('header.signIn')}</button>
             </Link>
           )}
         </div>

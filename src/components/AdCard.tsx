@@ -2,59 +2,62 @@
 
 import { useMemo } from 'react';
 import Image from 'next/image';
+import { useLocale } from '@/lib/i18n';
 
 const EP_ADS = [
   {
     id: "ep-1",
     image: "/ads/ep-finances.png",
-    headline: "Your financial ceiling isn't a math problem. It's an identity problem.",
-    body: "Sit down with The Analyst. Map the exact belief that's been deciding your income. Build the architecture to override it. One session. $20.",
-    cta: "Open The Analyst",
+    headline: { en: "Your financial ceiling isn't a math problem. It's an identity problem.", es: "Tu techo financiero no es un problema de números. Es un problema de identidad." },
+    body: { en: "Sit down with The Analyst. Map the exact belief that's been deciding your income. Build the architecture to override it. One session. $20.", es: "Siéntate con El Analista. Identifica la creencia exacta que ha estado decidiendo tus ingresos. Construye la arquitectura para superarla. Una sesión. $20." },
+    cta: { en: "Open The Analyst", es: "Abre El Analista" },
     href: "https://www.earnestpage.com",
   },
   {
     id: "ep-2",
     image: "/ads/ep-procrastination.png",
-    headline: "Every time you said \"later,\" you made a choice.",
-    body: "Procrastination isn't a personality trait — it's a disempowering belief you've been calling a schedule. One session with your Ideal Self changes that. $20.",
-    cta: "Enter Unfiltered Mode",
+    headline: { en: "Every time you said \"later,\" you made a choice.", es: "Cada vez que dijiste \"después,\" tomaste una decisión." },
+    body: { en: "Procrastination isn't a personality trait — it's a disempowering belief you've been calling a schedule. One session with your Ideal Self changes that. $20.", es: "Procrastinar no es un rasgo de personalidad — es una creencia limitante que has estado llamando agenda. Una sesión con tu Yo Ideal cambia eso. $20." },
+    cta: { en: "Enter Unfiltered Mode", es: "Entra al Modo Sin Filtros" },
     href: "https://www.earnestpage.com",
   },
   {
     id: "ep-3",
     image: "/ads/ep-relationships.png",
-    headline: "You've had the same argument in different clothes for years.",
-    body: "Your Tactical Partner maps the values underneath the conflict and architects a new way forward. One session. $20.",
-    cta: "Engage Your Tactical Partner",
+    headline: { en: "You've had the same argument in different clothes for years.", es: "Has tenido la misma discusión con diferente ropa durante años." },
+    body: { en: "Your Tactical Partner maps the values underneath the conflict and architects a new way forward. One session. $20.", es: "Tu Socio Táctico mapea los valores detrás del conflicto y diseña un nuevo camino. Una sesión. $20." },
+    cta: { en: "Engage Your Tactical Partner", es: "Conecta con tu Socio Táctico" },
     href: "https://www.earnestpage.com",
   },
   {
     id: "ep-4",
     image: "/ads/ep-career.png",
-    headline: "The next level isn't waiting for more experience. It's waiting for a shift.",
-    body: "Your Strategic Advisor maps the exact internal block between where you are and where your ambition already lives. One session. $20.",
-    cta: "Open Your Strategic Advisor",
+    headline: { en: "The next level isn't waiting for more experience. It's waiting for a shift.", es: "El siguiente nivel no espera más experiencia. Espera un cambio." },
+    body: { en: "Your Strategic Advisor maps the exact internal block between where you are and where your ambition already lives. One session. $20.", es: "Tu Asesor Estratégico identifica el bloqueo exacto entre donde estás y donde tu ambición ya vive. Una sesión. $20." },
+    cta: { en: "Open Your Strategic Advisor", es: "Abre tu Asesor Estratégico" },
     href: "https://www.earnestpage.com",
   },
   {
     id: "ep-5",
     image: "/ads/ep-identity.png",
-    headline: "You already know who you're supposed to be.",
-    body: "The gap between that person and the one showing up today isn't a mystery — it's a belief you've been treating as a fact. Enter Mirror Chat. $20.",
-    cta: "Enter Mirror Chat",
+    headline: { en: "You already know who you're supposed to be.", es: "Ya sabes quién deberías ser." },
+    body: { en: "The gap between that person and the one showing up today isn't a mystery — it's a belief you've been treating as a fact. Enter Mirror Chat. $20.", es: "La distancia entre esa persona y la que aparece hoy no es un misterio — es una creencia que has tratado como un hecho. Entra al Mirror Chat. $20." },
+    cta: { en: "Enter Mirror Chat", es: "Entra al Mirror Chat" },
     href: "https://www.earnestpage.com",
   },
   {
     id: "ep-6",
     image: "/ads/ep-gift-clarity.png",
-    headline: "Give Clarity.",
-    body: "You've watched them orbit the same decision for years. Send them a session with their Ideal Self. A compass they'll actually use. $20, delivered instantly.",
-    cta: "Gift a Session",
+    headline: { en: "Give Clarity.", es: "Regala Claridad." },
+    body: { en: "You've watched them orbit the same decision for years. Send them a session with their Ideal Self. A compass they'll actually use. $20, delivered instantly.", es: "Los has visto dar vueltas a la misma decisión durante años. Regálales una sesión con su Yo Ideal. Una brújula que realmente usarán. $20, entrega inmediata." },
+    cta: { en: "Gift a Session", es: "Regala una Sesión" },
     href: "https://earnestpage.com/gift",
   },
 ];
 
 export default function AdCard() {
+  const { t, locale } = useLocale();
+
   const ad = useMemo(
     () => EP_ADS[Math.floor(Math.random() * EP_ADS.length)],
     []
@@ -83,13 +86,13 @@ export default function AdCard() {
         (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--color-border)';
         (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(0)';
       }}
-      aria-label={`Sponsored: ${ad.headline}`}
+      aria-label={`${t('ad.sponsored')}: ${ad.headline[locale]}`}
     >
       {/* Image */}
       <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#0a0a0a' }}>
         <Image
           src={ad.image}
-          alt={ad.headline}
+          alt={ad.headline[locale]}
           fill
           style={{ objectFit: 'contain' }}
           sizes="(max-width: 768px) 100vw, 440px"
@@ -111,7 +114,7 @@ export default function AdCard() {
             borderRadius: 20,
           }}
         >
-          Sponsored
+          {t('ad.sponsored')}
         </span>
       </div>
 
@@ -126,7 +129,7 @@ export default function AdCard() {
             marginBottom: 8,
           }}
         >
-          {ad.headline}
+          {ad.headline[locale]}
         </p>
         <p
           style={{
@@ -136,7 +139,7 @@ export default function AdCard() {
             marginBottom: 14,
           }}
         >
-          {ad.body}
+          {ad.body[locale]}
         </p>
         <div
           style={{
@@ -148,7 +151,7 @@ export default function AdCard() {
             color: 'var(--color-accent)',
           }}
         >
-          {ad.cta}
+          {ad.cta[locale]}
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M2 10L10 2M10 2H5M10 2V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>

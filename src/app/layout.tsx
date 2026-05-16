@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import { LocaleProvider } from "@/lib/i18n";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -48,8 +49,10 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
       </head>
       <body>
-        <ServiceWorkerRegistrar />
-        {children}
+        <LocaleProvider>
+          <ServiceWorkerRegistrar />
+          {children}
+        </LocaleProvider>
       </body>
     </html>
   );

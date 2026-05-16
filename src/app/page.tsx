@@ -7,9 +7,14 @@ import TasteCard from '@/components/TasteCard';
 import AdCard from '@/components/AdCard';
 import SkeletonCard from '@/components/SkeletonCard';
 import Leaderboard from '@/components/Leaderboard';
+import { getCategoryConfig } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
 import type { Top4Card } from '@/lib/types';
 
 export default function Home() {
+  const { t, locale } = useLocale();
+  const categoryConfig = getCategoryConfig(locale);
+
   const [cards, setCards] = useState<Top4Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -19,7 +24,7 @@ export default function Home() {
 
   useEffect(() => {
     loadFeed(1);
-  }, []);
+  }, [locale]);
 
   // Infinite scroll — auto-load next batch when sentinel enters viewport
   useEffect(() => {
@@ -39,7 +44,7 @@ export default function Home() {
   async function loadFeed(page: number) {
     setLoading(true);
     try {
-      const res = await fetch(`/api/feed?page=${page}`);
+      const res = await fetch(`/api/feed?page=${page}&locale=${locale}`);
       const data = await res.json();
       setCards(data.cards || []);
       setCurrentPage(data.page || 1);
@@ -55,7 +60,7 @@ export default function Home() {
     setLoadingMore(true);
     const nextPage = currentPage + 1;
     try {
-      const res = await fetch(`/api/feed?page=${nextPage}`);
+      const res = await fetch(`/api/feed?page=${nextPage}&locale=${locale}`);
       const data = await res.json();
       if (data.cards?.length > 0) {
         setCards((prev) => [...prev, ...data.cards]);
@@ -66,7 +71,7 @@ export default function Home() {
       console.error('[Feed] Load more failed:', err);
     }
     setLoadingMore(false);
-  }, [currentPage, loadingMore, hasMore]);
+  }, [currentPage, loadingMore, hasMore, locale]);
 
   return (
     <div style={{ minHeight: '100dvh' }}>
@@ -91,8 +96,8 @@ export default function Home() {
             marginBottom: 12,
           }}
         >
-          What are your{' '}
-          <span className="logo-accent">top 4</span>?
+          {t('home.hero.title')}{' '}
+          <span className="logo-accent">{t('home.hero.titleAccent')}</span>{t('home.hero.titleEnd')}
         </h1>
         <p
           style={{
@@ -103,7 +108,7 @@ export default function Home() {
             margin: '0 auto',
           }}
         >
-          Movies. Artists. Books. Pick your favorites. See what everyone else loves.
+          {t('home.hero.subtitle')}
         </p>
       </section>
 
@@ -118,12 +123,12 @@ export default function Home() {
         }}
         className="animate-fade-in"
       >
-        {[
-          { key: 'movies', emoji: '🎬', label: 'Movies', color: 'var(--color-movies)', glow: 'var(--color-movies-glow)' },
-          { key: 'tv', emoji: '📺', label: 'TV Shows', color: 'var(--color-tv)', glow: 'var(--color-tv-glow)' },
-          { key: 'artists', emoji: '🎵', label: 'Artists', color: 'var(--color-artists)', glow: 'var(--color-artists-glow)' },
-          { key: 'books', emoji: '📚', label: 'Books', color: 'var(--color-books)', glow: 'var(--color-books-glow)' },
-        ].map((cat) => (
+        {([
+          { key: 'movies' as const, color: 'var(--color-movies)', glow: 'var(--color-movies-glow)' },
+          { key: 'tv' as const, color: 'var(--color-tv)', glow: 'var(--color-tv-glow)' },
+          { key: 'artists' as const, color: 'var(--color-artists)', glow: 'var(--color-artists-glow)' },
+          { key: 'books' as const, color: 'var(--color-books)', glow: 'var(--color-books-glow)' },
+        ]).map((cat) => (
           <Link
             key={cat.key}
             href={`/profile?category=${cat.key}`}
@@ -143,7 +148,7 @@ export default function Home() {
               transition: 'all 0.2s ease',
             }}
           >
-            {cat.emoji} {cat.label}
+            {categoryConfig[cat.key].emoji} {categoryConfig[cat.key].label}
           </Link>
         ))}
       </div>
@@ -172,7 +177,7 @@ export default function Home() {
             <div style={{ textAlign: 'center', padding: '48px 20px' }}>
               <p style={{ fontSize: 36, marginBottom: 12 }}>🎬🎵📚</p>
               <p style={{ color: 'var(--color-text-muted)', fontSize: 16 }}>
-                No cards yet — be the first to share your favorites!
+                {t('home.empty.text')}
               </p>
             </div>
           ) : (
@@ -200,7 +205,7 @@ export default function Home() {
               color: 'var(--color-text-dim)', fontSize: 13,
             }}>
               <div className="skeleton" style={{ width: 20, height: 20, borderRadius: '50%' }} />
-              Loading more...
+              {t('home.loadingMore')}
             </div>
           </div>
         )}
@@ -211,7 +216,7 @@ export default function Home() {
             textAlign: 'center', padding: '32px 0 16px',
             color: 'var(--color-text-dim)', fontSize: 13,
           }}>
-            You&apos;ve seen it all ✨
+            {t('home.endOfFeed')}
           </div>
         )}
       </main>

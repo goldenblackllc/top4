@@ -33,9 +33,12 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const locale = searchParams.get('locale') || 'en';
 
-    // Fetch ALL entries (Admin SDK, server-side — fast and free of client limits)
-    const entriesSnap = await db.collection('top4_entries').get();
+    // Fetch entries filtered by locale (Admin SDK, server-side)
+    const entriesSnap = await db.collection('top4_entries')
+      .where('locale', '==', locale)
+      .get();
 
     // Parse and filter to entries with real content
     const allEntries: RawEntry[] = [];

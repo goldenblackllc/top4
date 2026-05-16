@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import type { Category, SearchResult } from '@/lib/types';
-import { CATEGORY_CONFIG } from '@/lib/types';
+import { getCategoryConfig } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
 
 interface SearchInputProps {
   category: Category;
@@ -21,13 +22,15 @@ export default function SearchInput({
   onSelect,
   onClear,
 }: SearchInputProps) {
+  const { t, locale } = useLocale();
+  const config = getCategoryConfig(locale)[category];
+
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const config = CATEGORY_CONFIG[category];
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -155,7 +158,7 @@ export default function SearchInput({
           }}
           onMouseEnter={(e) => { e.currentTarget.style.color = '#f87171'; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-dim)'; }}
-          title="Remove"
+          title={t('search.remove')}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M5 5L11 11M11 5L5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

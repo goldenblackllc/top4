@@ -7,9 +7,12 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const categoryParam = searchParams.get('category') as Category | null;
+    const locale = searchParams.get('locale') || 'en';
 
-    // Fetch ALL entries in one read (no composite index needed)
-    const snap = await db.collection('top4_entries').get();
+    // Fetch entries filtered by locale
+    const snap = await db.collection('top4_entries')
+      .where('locale', '==', locale)
+      .get();
 
     // Group by category, filter for entries with likes
     const byCat: Record<string, Array<{

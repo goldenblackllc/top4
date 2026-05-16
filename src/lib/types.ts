@@ -38,46 +38,47 @@ export interface SearchResult {
   image_url?: string;
 }
 
+import type { Locale } from '@/lib/i18n/translations';
+
 export const CATEGORIES: Category[] = ['movies', 'tv', 'artists', 'books'];
 
-export const CATEGORY_CONFIG: Record<Category, {
+export interface CategoryConfig {
   label: string;
   emoji: string;
   color: string;
   gradient: string;
   bgClass: string;
   searchPlaceholder: string;
+}
+
+/** Base config (visual properties only — no locale-dependent text). */
+const CATEGORY_BASE: Record<Category, {
+  emoji: string;
+  color: string;
+  gradient: string;
+  bgClass: string;
 }> = {
-  movies: {
-    label: 'Movies',
-    emoji: '🎬',
-    color: '#f59e0b',
-    gradient: 'linear-gradient(135deg, #f59e0b22, #d9770622)',
-    bgClass: 'category-movies',
-    searchPlaceholder: 'Search movies...',
-  },
-  tv: {
-    label: 'TV Shows',
-    emoji: '📺',
-    color: '#ec4899',
-    gradient: 'linear-gradient(135deg, #ec489922, #9d174d22)',
-    bgClass: 'category-tv',
-    searchPlaceholder: 'Search TV shows...',
-  },
-  artists: {
-    label: 'Artists',
-    emoji: '🎵',
-    color: '#a78bfa',
-    gradient: 'linear-gradient(135deg, #a78bfa22, #7c3aed22)',
-    bgClass: 'category-artists',
-    searchPlaceholder: 'Search artists...',
-  },
-  books: {
-    label: 'Books',
-    emoji: '📚',
-    color: '#2dd4bf',
-    gradient: 'linear-gradient(135deg, #2dd4bf22, #14b8a622)',
-    bgClass: 'category-books',
-    searchPlaceholder: 'Search books...',
-  },
+  movies: { emoji: '🎬', color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b22, #d9770622)', bgClass: 'category-movies' },
+  tv:      { emoji: '📺', color: '#ec4899', gradient: 'linear-gradient(135deg, #ec489922, #9d174d22)', bgClass: 'category-tv' },
+  artists: { emoji: '🎵', color: '#a78bfa', gradient: 'linear-gradient(135deg, #a78bfa22, #7c3aed22)', bgClass: 'category-artists' },
+  books:   { emoji: '📚', color: '#2dd4bf', gradient: 'linear-gradient(135deg, #2dd4bf22, #14b8a622)', bgClass: 'category-books' },
 };
+
+const CATEGORY_TEXT: Record<Category, Record<Locale, { label: string; searchPlaceholder: string }>> = {
+  movies:  { en: { label: 'Movies',   searchPlaceholder: 'Search movies...'    }, es: { label: 'Películas', searchPlaceholder: 'Buscar películas...' } },
+  tv:      { en: { label: 'TV Shows', searchPlaceholder: 'Search TV shows...'  }, es: { label: 'Series',    searchPlaceholder: 'Buscar series...'    } },
+  artists: { en: { label: 'Artists',  searchPlaceholder: 'Search artists...'   }, es: { label: 'Artistas',  searchPlaceholder: 'Buscar artistas...'  } },
+  books:   { en: { label: 'Books',    searchPlaceholder: 'Search books...'     }, es: { label: 'Libros',    searchPlaceholder: 'Buscar libros...'    } },
+};
+
+/** Default English config — used where no locale context is available (e.g. server components). */
+export const CATEGORY_CONFIG: Record<Category, CategoryConfig> = Object.fromEntries(
+  CATEGORIES.map((cat) => [cat, { ...CATEGORY_BASE[cat], ...CATEGORY_TEXT[cat].en }])
+) as Record<Category, CategoryConfig>;
+
+/** Locale-aware config getter — use in client components with useLocale(). */
+export function getCategoryConfig(locale: Locale): Record<Category, CategoryConfig> {
+  return Object.fromEntries(
+    CATEGORIES.map((cat) => [cat, { ...CATEGORY_BASE[cat], ...CATEGORY_TEXT[cat][locale] }])
+  ) as Record<Category, CategoryConfig>;
+}

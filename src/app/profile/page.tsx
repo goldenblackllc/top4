@@ -9,7 +9,8 @@ import { uploadAvatar } from '@/lib/firebase/storage';
 import Header from '@/components/Header';
 import DraggableList from '@/components/DraggableList';
 import TasteCard from '@/components/TasteCard';
-import { CATEGORIES, CATEGORY_CONFIG, type Category, type Top4Item, type Top4Card } from '@/lib/types';
+import { CATEGORIES, getCategoryConfig, type Category, type Top4Item, type Top4Card } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
 
 const EMPTY_ITEMS: Top4Item[] = [
   { rank: 1, title: '' },
@@ -31,45 +32,45 @@ function sanitizeName(raw: string, maxLen = 40): string {
 
 /**
  * Heuristic check for names / nicknames.
- * Returns an error string if the name looks like spam/ads, null if it's fine.
+ * Returns a translation key if the name looks like spam/ads, null if it's fine.
  */
 function validateName(name: string): string | null {
   const s = sanitizeName(name);
 
-  if (s.length < 2) return 'Name must be at least 2 characters.';
+  if (s.length < 2) return 'validation.nameMin';
 
   // Must contain at least one real letter
   if (!/[a-zA-ZÀ-ÖØ-öø-ÿ]/.test(s))
-    return 'Name must contain at least one letter.';
+    return 'validation.nameLetter';
 
   // No URLs
   if (/https?:\/\//i.test(s) || /\bwww\./i.test(s))
-    return 'URLs are not allowed in names.';
+    return 'validation.noUrls';
 
   // No TLD-like endings that suggest a domain/ad
   if (/\.(com|net|org|io|co|app|gg|tv|me|info|biz)\b/i.test(s))
-    return 'URLs are not allowed in names.';
+    return 'validation.noUrls';
 
   // No email addresses
-  if (/@/.test(s)) return 'Email addresses are not allowed in names.';
+  if (/@/.test(s)) return 'validation.noEmail';
 
   // No runs of 6+ consecutive digits (phone numbers)
-  if (/\d{6,}/.test(s)) return 'Phone numbers are not allowed in names.';
+  if (/\d{6,}/.test(s)) return 'validation.noPhone';
 
   // No more than 50% digits overall
   const digits = (s.match(/\d/g) || []).length;
-  if (digits / s.length > 0.5) return 'Name looks like a number — try a nickname.';
+  if (digits / s.length > 0.5) return 'validation.looksLikeNumber';
 
   // No excessive repeated characters (e.g. "aaaaaaa", "!!!!!")
-  if (/(.)\1{4,}/.test(s)) return 'Name has too many repeated characters.';
+  if (/(.)\\1{4,}/.test(s)) return 'validation.tooManyRepeats';
 
   // No strings of 3+ punctuation / symbol characters in a row
-  if (/[!$%^&*#@~|<>=+]{3,}/.test(s)) return 'Too many symbols in the name.';
+  if (/[!$%^&*#@~|<>=+]{3,}/.test(s)) return 'validation.tooManySymbols';
 
   // Catch ALL CAPS names with 2+ words that are 4+ chars each (classic spam: "BUY NOW CHEAP")
   const words = s.split(/\s+/);
   const longCapWords = words.filter((w) => w.length >= 4 && w === w.toUpperCase() && /[A-Z]/.test(w));
-  if (longCapWords.length >= 2) return 'Names in ALL CAPS look like ads. Use normal capitalization.';
+  if (longCapWords.length >= 2) return 'validation.allCaps';
 
   return null;
 }
@@ -78,6 +79,8 @@ function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t, locale } = useLocale();
+  const categoryConfig = getCategoryConfig(locale);
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -165,21 +168,21 @@ function ProfileContent() {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(async () => {
         try {
-          await upsertEntry(userId, category, newItems);
-          showToast('Saved ✓');
+          await upsertEntry(userId, category, newItems, locale);
+          showToast(t('profile.saved'));
         } catch (err) {
           console.error('Auto-save error:', err);
-          showToast('Save failed');
+          showToast(t('profile.saveFailed'));
         }
       }, 600);
     },
-    []
+    [t, locale]
   );
 
   async function saveProfile(userId: string, name: string, url: string | null) {
-    const error = validateName(name);
-    if (error) {
-      setNameError(error);
+    const errorKey = validateName(name);
+    if (errorKey) {
+      setNameError(t(errorKey as Parameters<typeof t>[0]));
       return; // don't persist invalid names
     }
     setNameError(null);
@@ -187,11 +190,12 @@ function ProfileContent() {
       await upsertProfile(userId, {
         display_name: sanitizeName(name) || 'User',
         avatar_url: url,
+        locale,
       });
-      showToast('Saved ✓');
+      showToast(t('profile.saved'));
     } catch (err) {
       console.error('Profile save error:', err);
-      showToast('Save failed');
+      showToast(t('profile.saveFailed'));
     }
   }
 
@@ -205,11 +209,11 @@ function ProfileContent() {
     if (!file || !user) return;
 
     if (!file.type.startsWith('image/')) {
-      showToast('Please select an image file');
+      showToast(t('profile.selectImage'));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      showToast('Image must be under 5MB');
+      showToast(t('profile.imageUnder5MB'));
       return;
     }
 
@@ -217,10 +221,10 @@ function ProfileContent() {
     try {
       const url = await uploadAvatar(user.uid, file);
       setAvatarUrl(url);
-      showToast('Photo updated!');
+      showToast(t('profile.photoUpdated'));
     } catch (err) {
       console.error('Avatar upload error:', err);
-      showToast('Upload failed — check Firebase Storage rules');
+      showToast(t('profile.uploadFailed'));
     }
     setUploadingAvatar(false);
   }
@@ -244,7 +248,7 @@ function ProfileContent() {
   }
 
   const currentEntry = entries[activeTab];
-  const config = CATEGORY_CONFIG[activeTab];
+  const config = categoryConfig[activeTab];
 
   return (
     <div style={{ minHeight: '100dvh' }}>
@@ -315,11 +319,15 @@ function ProfileContent() {
               if (nameError) setNameError(null);
             }}
             onBlur={() => {
-              const error = validateName(displayName);
-              setNameError(error);
-              if (!error && user) saveProfile(user.uid, displayName, avatarUrl);
+              const errorKey = validateName(displayName);
+              if (errorKey) {
+                setNameError(t(errorKey as Parameters<typeof t>[0]));
+              } else {
+                setNameError(null);
+              }
+              if (!errorKey && user) saveProfile(user.uid, displayName, avatarUrl);
             }}
-            placeholder="Your name or nickname"
+            placeholder={t('profile.namePlaceholder')}
             className="input-field"
             style={{
               maxWidth: 240,
@@ -361,7 +369,7 @@ function ProfileContent() {
               transition: 'all 0.2s ease',
             }}
           >
-            My Top 4s
+            {t('profile.myTop4s')}
           </button>
           <button
             onClick={() => router.push('/profile?tab=liked')}
@@ -377,7 +385,7 @@ function ProfileContent() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill={isLikedTab ? '#f43f5e' : 'none'} stroke="currentColor" strokeWidth="2">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
             </svg>
-            Liked
+            {t('profile.liked')}
           </button>
         </div>
 
@@ -386,13 +394,13 @@ function ProfileContent() {
           <div className="animate-fade-in">
             {likedLoading ? (
               <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-dim)', fontSize: 14 }}>
-                Loading...
+                {t('profile.loading')}
               </div>
             ) : likedCards.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '48px 20px' }}>
                 <div style={{ fontSize: 36, marginBottom: 12 }}>♡</div>
-                <p style={{ color: 'var(--color-text-dim)', fontSize: 15 }}>No liked lists yet</p>
-                <p style={{ color: 'var(--color-text-dim)', fontSize: 13, marginTop: 6 }}>Heart a list in the feed to save it here</p>
+                <p style={{ color: 'var(--color-text-dim)', fontSize: 15 }}>{t('profile.noLikedLists')}</p>
+                <p style={{ color: 'var(--color-text-dim)', fontSize: 13, marginTop: 6 }}>{t('profile.heartToSave')}</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -408,7 +416,7 @@ function ProfileContent() {
             {/* Category sub-tabs */}
             <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--color-border)', marginBottom: 24 }}>
               {CATEGORIES.map((cat) => {
-                const catConfig = CATEGORY_CONFIG[cat];
+                const catConfig = categoryConfig[cat];
                 const isActive = cat === activeTab;
                 return (
                   <button
@@ -432,7 +440,7 @@ function ProfileContent() {
             <div className="glass-card animate-fade-in" style={{ padding: 24, overflow: 'visible' }} key={activeTab}>
               <div style={{ height: 3, background: `linear-gradient(90deg, ${config.color}, ${config.color}88)`, margin: '-24px -24px 20px' }} />
               <h2 style={{ fontSize: 16, fontWeight: 700, color: config.color, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-                {config.emoji} Your Top 4 {config.label}
+                {config.emoji} {t('profile.yourTop4')} {config.label}
               </h2>
               <DraggableList
                 category={activeTab}

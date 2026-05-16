@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { CATEGORY_CONFIG, CATEGORIES, type Category } from '@/lib/types';
+import { getCategoryConfig, CATEGORIES, type Category } from '@/lib/types';
+import { useLocale } from '@/lib/i18n';
 
 interface LeaderboardEntry {
   entryId: string;
@@ -19,13 +20,16 @@ type LeaderboardData = Record<string, LeaderboardEntry[]>;
 const RANK_ICONS = ['🥇', '🥈', '🥉'] as const;
 
 export default function Leaderboard() {
+  const { t, locale } = useLocale();
+  const categoryConfig = getCategoryConfig(locale);
+
   const [data, setData] = useState<LeaderboardData>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/leaderboard');
+        const res = await fetch(`/api/leaderboard?locale=${locale}`);
         const json = await res.json();
         setData(json.leaderboard || {});
       } catch (err) {
@@ -34,7 +38,7 @@ export default function Leaderboard() {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [locale]);
 
   const hasAnyData = Object.values(data).some((arr) => arr.length > 0);
 
@@ -69,7 +73,7 @@ export default function Leaderboard() {
             color: 'var(--color-text)',
           }}
         >
-          Leaderboards
+          {t('leaderboard.title')}
         </h2>
         <div
           style={{
@@ -91,7 +95,7 @@ export default function Leaderboard() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12 }}>
           {CATEGORIES.map((cat) => {
-            const config = CATEGORY_CONFIG[cat];
+            const config = categoryConfig[cat];
             const entries = data[cat] || [];
 
             return (
@@ -251,7 +255,7 @@ export default function Leaderboard() {
                         paddingTop: 8,
                       }}
                     >
-                      No leaders yet — be the first!
+                      {t('leaderboard.noLeaders')}
                     </div>
                   )}
                 </div>
