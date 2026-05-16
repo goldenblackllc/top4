@@ -1,47 +1,71 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from '@/components/Header';
 import TasteCard from '@/components/TasteCard';
 import AdCard from '@/components/AdCard';
 import SkeletonCard from '@/components/SkeletonCard';
 import Leaderboard from '@/components/Leaderboard';
-import { DEMO_CARDS } from '@/lib/demo-data';
 import type { Top4Card } from '@/lib/types';
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const shuffled = [...arr];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
 
 export default function Home() {
   const [cards, setCards] = useState<Top4Card[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadFeed();
+    loadFeed(1);
   }, []);
 
-  async function loadFeed() {
+  // Infinite scroll — auto-load next batch when sentinel enters viewport
+  useEffect(() => {
+    if (!loadMoreRef.current || loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadMoreFeed();
+        }
+      },
+      { rootMargin: '400px' }
+    );
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, currentPage]);
+
+  async function loadFeed(page: number) {
     setLoading(true);
     try {
-      const res = await fetch('/api/feed');
+      const res = await fetch(`/api/feed?page=${page}`);
       const data = await res.json();
-      if (data.cards?.length > 0) {
-        setCards(data.cards);
-      } else {
-        setCards(shuffleArray(DEMO_CARDS));
-      }
+      setCards(data.cards || []);
+      setCurrentPage(data.page || 1);
+      setHasMore(data.hasMore || false);
     } catch (err) {
       console.error('[Feed] Load failed:', err);
-      setCards(shuffleArray(DEMO_CARDS));
     }
     setLoading(false);
   }
+
+  const loadMoreFeed = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = currentPage + 1;
+    try {
+      const res = await fetch(`/api/feed?page=${nextPage}`);
+      const data = await res.json();
+      if (data.cards?.length > 0) {
+        setCards((prev) => [...prev, ...data.cards]);
+      }
+      setCurrentPage(data.page || nextPage);
+      setHasMore(data.hasMore || false);
+    } catch (err) {
+      console.error('[Feed] Load more failed:', err);
+    }
+    setLoadingMore(false);
+  }, [currentPage, loadingMore, hasMore]);
 
   return (
     <div style={{ minHeight: '100dvh' }}>
@@ -89,6 +113,7 @@ export default function Home() {
           justifyContent: 'center',
           gap: 10,
           padding: '0 20px 36px',
+          flexWrap: 'wrap',
         }}
         className="animate-fade-in"
       >
@@ -138,9 +163,16 @@ export default function Home() {
                 </div>
               ))}
             </>
+          ) : cards.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px' }}>
+              <p style={{ fontSize: 36, marginBottom: 12 }}>🎬🎵📚</p>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: 16 }}>
+                No cards yet — be the first to share your favorites!
+              </p>
+            </div>
           ) : (
             cards.map((card, i) => (
-              <div key={card.entry.id} style={{ breakInside: 'avoid', marginBottom: 20 }}>
+              <div key={`${card.entry.id}-${i}`} style={{ breakInside: 'avoid', marginBottom: 20 }}>
                 <TasteCard card={card} index={i} />
                 {(i + 1) % 5 === 0 && i < cards.length - 1 && (
                   <div style={{ marginTop: 20 }}>
@@ -151,6 +183,32 @@ export default function Home() {
             ))
           )}
         </div>
+
+        {/* Invisible sentinel — triggers auto-load when scrolled into view */}
+        <div ref={loadMoreRef} style={{ height: 1 }} />
+
+        {/* Loading spinner while fetching more */}
+        {loadingMore && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              color: 'var(--color-text-dim)', fontSize: 13,
+            }}>
+              <div className="skeleton" style={{ width: 20, height: 20, borderRadius: '50%' }} />
+              Loading more...
+            </div>
+          </div>
+        )}
+
+        {/* End of feed */}
+        {!hasMore && cards.length > 0 && !loading && (
+          <div style={{
+            textAlign: 'center', padding: '32px 0 16px',
+            color: 'var(--color-text-dim)', fontSize: 13,
+          }}>
+            You&apos;ve seen it all ✨
+          </div>
+        )}
       </main>
 
       {/* Footer */}

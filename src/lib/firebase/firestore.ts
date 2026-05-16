@@ -328,13 +328,8 @@ export function subscribeToNotifications(
   userId: string,
   callback: (notifs: Notification[]) => void,
 ): Unsubscribe {
-  const q = query(
-    collection(db, 'notifications', userId, 'items'),
-    orderBy('created_at', 'desc'),
-    limit(20),
-  );
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({
+  const parseNotifs = (snap: import('firebase/firestore').QuerySnapshot) => {
+    return snap.docs.map((d) => ({
       id: d.id,
       type: d.data().type,
       from_display_name: d.data().from_display_name || 'Someone',
@@ -343,8 +338,36 @@ export function subscribeToNotifications(
       category: d.data().category,
       read: d.data().read || false,
       created_at: d.data().created_at?.toDate?.()?.toISOString() || '',
-    })));
-  });
+    }));
+  };
+
+  // Try with orderBy first (requires index)
+  const q = query(
+    collection(db, 'notifications', userId, 'items'),
+    orderBy('created_at', 'desc'),
+    limit(20),
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(parseNotifs(snap));
+    },
+    (error) => {
+      console.error('[Notifications] onSnapshot error:', error);
+      // Fallback: query without orderBy (doesn't need index)
+      const fallbackQ = query(
+        collection(db, 'notifications', userId, 'items'),
+        limit(20),
+      );
+      onSnapshot(fallbackQ, (snap) => {
+        const notifs = parseNotifs(snap);
+        // Sort client-side
+        notifs.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+        callback(notifs);
+      });
+    },
+  );
 }
 
 export async function markNotificationsRead(userId: string, notifIds: string[]): Promise<void> {

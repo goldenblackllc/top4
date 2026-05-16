@@ -177,7 +177,7 @@ export default function SearchInput({
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={() => { if (results.length > 0) setOpen(true); }}
           style={{
-            fontSize: 14,
+            fontSize: 16,
             paddingRight: loading ? 36 : 14,
           }}
         />

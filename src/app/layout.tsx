@@ -1,5 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#08080d",
+};
 
 export const metadata: Metadata = {
   title: "Top4 — Share Your Favorite Things",
@@ -9,6 +18,12 @@ export const metadata: Metadata = {
     title: "Top4 — Share Your Favorite Things",
     description: "Pick your top 4 movies, artists, and books.",
     type: "website",
+  },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Top4",
   },
 };
 
@@ -30,8 +45,12 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
       </head>
-      <body>{children}</body>
+      <body>
+        <ServiceWorkerRegistrar />
+        {children}
+      </body>
     </html>
   );
 }

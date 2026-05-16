@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import type { Category, SearchResult } from '@/lib/types';
 import { CATEGORY_CONFIG } from '@/lib/types';
 import SearchInput from './SearchInput';
@@ -17,6 +17,17 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
   const dragIndexRef = useRef<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
+  // Touch drag state
+  const touchStartY = useRef<number>(0);
+  const touchCurrentY = useRef<number>(0);
+  const touchDragging = useRef<boolean>(false);
+  const touchItemRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [touchDragIndex, setTouchDragIndex] = useState<number | null>(null);
+  const [touchOffset, setTouchOffset] = useState(0);
+
+  // --- Desktop Drag & Drop ---
   function handleDragStart(index: number) {
     dragIndexRef.current = index;
   }
@@ -34,13 +45,7 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
       return;
     }
 
-    const reordered = [...items];
-    const [moved] = reordered.splice(dragIndex, 1);
-    reordered.splice(dropIndex, 0, moved);
-
-    // Reassign ranks to match new order
-    const updated = reordered.map((item, i) => ({ ...item, rank: i + 1 }));
-    onChange(updated);
+    reorder(dragIndex, dropIndex);
     dragIndexRef.current = null;
     setDragOverIndex(null);
   }
@@ -48,6 +53,86 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
   function handleDragEnd() {
     dragIndexRef.current = null;
     setDragOverIndex(null);
+  }
+
+  // --- Touch Drag & Drop ---
+  const handleTouchStart = useCallback((e: React.TouchEvent, index: number) => {
+    // Only start drag from the handle area — check if touch target is inside the drag handle
+    const target = e.target as HTMLElement;
+    const handle = target.closest('[data-drag-handle]');
+    if (!handle) return;
+
+    e.preventDefault();
+    const touch = e.touches[0];
+    touchStartY.current = touch.clientY;
+    touchCurrentY.current = touch.clientY;
+    dragIndexRef.current = index;
+    touchDragging.current = true;
+    touchItemRef.current = itemRefs.current[index];
+    setTouchDragIndex(index);
+    setTouchOffset(0);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchDragging.current || dragIndexRef.current === null) return;
+    e.preventDefault();
+
+    const touch = e.touches[0];
+    touchCurrentY.current = touch.clientY;
+    const offset = touch.clientY - touchStartY.current;
+    setTouchOffset(offset);
+
+    // Determine which index we're hovering over
+    const dragIdx = dragIndexRef.current;
+    let targetIndex = dragIdx;
+
+    for (let i = 0; i < itemRefs.current.length; i++) {
+      const el = itemRefs.current[i];
+      if (!el || i === dragIdx) continue;
+      const rect = el.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (touch.clientY < midY && i < dragIdx) {
+        targetIndex = i;
+        break;
+      }
+      if (touch.clientY > midY && i > dragIdx) {
+        targetIndex = i;
+      }
+    }
+    setDragOverIndex(targetIndex !== dragIdx ? targetIndex : null);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!touchDragging.current || dragIndexRef.current === null) {
+      resetTouchState();
+      return;
+    }
+
+    const dragIdx = dragIndexRef.current;
+    if (dragOverIndex !== null && dragOverIndex !== dragIdx) {
+      reorder(dragIdx, dragOverIndex);
+    }
+
+    resetTouchState();
+  }, [dragOverIndex]);
+
+  function resetTouchState() {
+    touchDragging.current = false;
+    dragIndexRef.current = null;
+    touchItemRef.current = null;
+    setTouchDragIndex(null);
+    setTouchOffset(0);
+    setDragOverIndex(null);
+  }
+
+  function reorder(fromIndex: number, toIndex: number) {
+    const reordered = [...items];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+
+    // Reassign ranks to match new order
+    const updated = reordered.map((item, i) => ({ ...item, rank: i + 1 }));
+    onChange(updated);
   }
 
   function handleSelect(rank: number, result: SearchResult) {
@@ -73,40 +158,54 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div
+      ref={listRef}
+      style={{ display: 'flex', flexDirection: 'column', gap: 10, touchAction: 'none' }}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {items.map((item, index) => {
-        const isDragging = dragIndexRef.current === index;
-        const isDragOver = dragOverIndex === index && dragIndexRef.current !== index;
+        const isDragging = touchDragIndex === index || dragIndexRef.current === index;
+        const isDragOver = dragOverIndex === index && dragIndexRef.current !== index && touchDragIndex !== index;
 
         return (
           <div
             key={item.rank}
+            ref={(el) => { itemRefs.current[index] = el; }}
             draggable
             onDragStart={() => handleDragStart(index)}
             onDragOver={(e) => handleDragOver(e, index)}
             onDrop={(e) => handleDrop(e, index)}
             onDragEnd={handleDragEnd}
+            onTouchStart={(e) => handleTouchStart(e, index)}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 10,
               opacity: isDragging ? 0.4 : 1,
               borderRadius: 10,
-              transition: 'all 0.15s ease',
+              transition: touchDragIndex !== null ? 'none' : 'all 0.15s ease',
               borderTop: isDragOver ? `2px solid ${config.color}` : '2px solid transparent',
               paddingTop: isDragOver ? 4 : 0,
+              transform: touchDragIndex === index ? `translateY(${touchOffset}px)` : undefined,
+              zIndex: touchDragIndex === index ? 10 : 1,
+              position: 'relative',
+              background: touchDragIndex === index ? 'var(--color-bg-card)' : undefined,
+              boxShadow: touchDragIndex === index ? '0 8px 24px rgba(0,0,0,0.4)' : undefined,
             }}
           >
             {/* Drag handle */}
             <div
+              data-drag-handle
               style={{
                 cursor: 'grab',
                 color: 'var(--color-text-dim)',
-                padding: '4px 2px',
+                padding: '8px 6px',
                 flexShrink: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 3,
+                touchAction: 'none',
               }}
               title="Drag to reorder"
             >

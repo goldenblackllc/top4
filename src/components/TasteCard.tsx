@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
-import { likeEntry, unlikeEntry, hasLiked, getProfile } from '@/lib/firebase/firestore';
+import { getProfile } from '@/lib/firebase/firestore';
 import { CATEGORY_CONFIG, type Top4Card } from '@/lib/types';
 
 interface TasteCardProps {
@@ -26,12 +26,12 @@ export default function TasteCard({ card, index = 0 }: TasteCardProps) {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
       setCurrentUserId(user.uid);
-      // Load like state and current user's display name
-      const [liked, myProfile] = await Promise.all([
-        hasLiked(user.uid, entry.id),
+      // Check like state via server API and load user's display name
+      const [likeRes, myProfile] = await Promise.all([
+        fetch(`/api/like?userId=${user.uid}&entryId=${entry.id}`).then(r => r.json()).catch(() => ({ liked: false })),
         getProfile(user.uid),
       ]);
-      setLiked(liked);
+      setLiked(likeRes.liked || false);
       setCurrentUserName(myProfile?.display_name || 'Someone');
     });
     return () => unsub();
@@ -41,14 +41,34 @@ export default function TasteCard({ card, index = 0 }: TasteCardProps) {
     if (!currentUserId || liking) return;
     setLiking(true);
 
-    if (liked) {
-      setLiked(false);
-      setLikeCount((c) => Math.max(0, c - 1));
-      await unlikeEntry(currentUserId, entry.id);
-    } else {
-      setLiked(true);
-      setLikeCount((c) => c + 1);
-      await likeEntry(currentUserId, currentUserName, entry.id, entry.user_id, entry.category);
+    const newLiked = !liked;
+    // Optimistic update
+    setLiked(newLiked);
+    setLikeCount((c) => newLiked ? c + 1 : Math.max(0, c - 1));
+
+    try {
+      const res = await fetch('/api/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: newLiked ? 'like' : 'unlike',
+          likedBy: currentUserId,
+          likedByName: currentUserName,
+          entryId: entry.id,
+          ownerId: entry.user_id,
+          category: entry.category,
+        }),
+      });
+
+      if (!res.ok) {
+        // Revert optimistic update on failure
+        setLiked(!newLiked);
+        setLikeCount((c) => newLiked ? Math.max(0, c - 1) : c + 1);
+      }
+    } catch {
+      // Revert optimistic update on error
+      setLiked(!newLiked);
+      setLikeCount((c) => newLiked ? Math.max(0, c - 1) : c + 1);
     }
     setLiking(false);
   }
