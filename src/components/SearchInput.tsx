@@ -12,6 +12,7 @@ interface SearchInputProps {
   currentImageUrl?: string;
   onSelect: (result: SearchResult) => void;
   onClear: () => void;
+  onDropdownToggle?: (isOpen: boolean) => void;
 }
 
 export default function SearchInput({
@@ -21,6 +22,7 @@ export default function SearchInput({
   currentImageUrl,
   onSelect,
   onClear,
+  onDropdownToggle,
 }: SearchInputProps) {
   const { t, locale } = useLocale();
   const config = getCategoryConfig(locale)[category];
@@ -37,11 +39,12 @@ export default function SearchInput({
     const handleClick = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
+        onDropdownToggle?.(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+  }, [onDropdownToggle]);
 
   function handleInputChange(value: string) {
     setQuery(value);
@@ -51,6 +54,7 @@ export default function SearchInput({
     if (value.trim().length < 2) {
       setResults([]);
       setOpen(false);
+      onDropdownToggle?.(false);
       return;
     }
 
@@ -61,7 +65,9 @@ export default function SearchInput({
         if (res.ok) {
           const data = await res.json();
           setResults(data);
-          setOpen(data.length > 0);
+          const isOpen = data.length > 0;
+          setOpen(isOpen);
+          onDropdownToggle?.(isOpen);
         }
       } catch {
         // Silently fail
@@ -75,6 +81,7 @@ export default function SearchInput({
     setQuery('');
     setResults([]);
     setOpen(false);
+    onDropdownToggle?.(false);
   }
 
   // If there's already a selection, show it

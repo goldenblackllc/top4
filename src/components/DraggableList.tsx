@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import type { Category, SearchResult } from '@/lib/types';
+import type { Category, SearchResult, Top4Item } from '@/lib/types';
 import { getCategoryConfig } from '@/lib/types';
 import { useLocale } from '@/lib/i18n';
 import SearchInput from './SearchInput';
-import type { Top4Item } from '@/lib/types';
 
 interface DraggableListProps {
   category: Category;
@@ -18,6 +17,7 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
   const config = getCategoryConfig(locale)[category];
   const dragIndexRef = useRef<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [activeSearchIndex, setActiveSearchIndex] = useState<number | null>(null);
 
   // Touch drag state
   const touchStartY = useRef<number>(0);
@@ -190,7 +190,7 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
               borderTop: isDragOver ? `2px solid ${config.color}` : '2px solid transparent',
               paddingTop: isDragOver ? 4 : 0,
               transform: touchDragIndex === index ? `translateY(${touchOffset}px)` : undefined,
-              zIndex: touchDragIndex === index ? 10 : 1,
+              zIndex: touchDragIndex === index ? 10 : activeSearchIndex === index ? 20 : 1,
               position: 'relative',
               background: touchDragIndex === index ? 'var(--color-bg-card)' : undefined,
               boxShadow: touchDragIndex === index ? '0 8px 24px rgba(0,0,0,0.4)' : undefined,
@@ -238,6 +238,7 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
                 currentImageUrl={item.image_url}
                 onSelect={(result: SearchResult) => handleSelect(item.rank, result)}
                 onClear={() => handleClear(item.rank)}
+                onDropdownToggle={(isOpen: boolean) => setActiveSearchIndex(isOpen ? index : null)}
               />
             </div>
           </div>
