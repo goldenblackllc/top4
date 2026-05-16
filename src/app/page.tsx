@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import Header from '@/components/Header';
 import TasteCard from '@/components/TasteCard';
 import AdCard from '@/components/AdCard';
@@ -106,7 +107,7 @@ export default function Home() {
         </p>
       </section>
 
-      {/* Category Pills */}
+      {/* Category Pills — link to user's profile editor for that category */}
       <div
         style={{
           display: 'flex',
@@ -118,13 +119,14 @@ export default function Home() {
         className="animate-fade-in"
       >
         {[
-          { emoji: '🎬', label: 'Movies', color: 'var(--color-movies)', glow: 'var(--color-movies-glow)' },
-          { emoji: '📺', label: 'TV Shows', color: 'var(--color-tv)', glow: 'var(--color-tv-glow)' },
-          { emoji: '🎵', label: 'Artists', color: 'var(--color-artists)', glow: 'var(--color-artists-glow)' },
-          { emoji: '📚', label: 'Books', color: 'var(--color-books)', glow: 'var(--color-books-glow)' },
+          { key: 'movies', emoji: '🎬', label: 'Movies', color: 'var(--color-movies)', glow: 'var(--color-movies-glow)' },
+          { key: 'tv', emoji: '📺', label: 'TV Shows', color: 'var(--color-tv)', glow: 'var(--color-tv-glow)' },
+          { key: 'artists', emoji: '🎵', label: 'Artists', color: 'var(--color-artists)', glow: 'var(--color-artists-glow)' },
+          { key: 'books', emoji: '📚', label: 'Books', color: 'var(--color-books)', glow: 'var(--color-books-glow)' },
         ].map((cat) => (
-          <span
-            key={cat.label}
+          <Link
+            key={cat.key}
+            href={`/profile?category=${cat.key}`}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -136,10 +138,13 @@ export default function Home() {
               background: cat.glow,
               color: cat.color,
               border: `1px solid ${cat.color}22`,
+              textDecoration: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
             }}
           >
             {cat.emoji} {cat.label}
-          </span>
+          </Link>
         ))}
       </div>
 

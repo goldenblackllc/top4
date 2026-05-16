@@ -96,7 +96,11 @@ function ProfileContent() {
     books: { items: EMPTY_ITEMS.map((i) => ({ ...i })) },
   });
 
-  const [activeTab, setActiveTab] = useState<Category>('movies');
+  const [activeTab, setActiveTab] = useState<Category>(() => {
+    const cat = searchParams.get('category');
+    if (cat && ['movies', 'tv', 'artists', 'books'].includes(cat)) return cat as Category;
+    return 'movies';
+  });
 
   // Liked tab
   const isLikedTab = searchParams.get('tab') === 'liked';
