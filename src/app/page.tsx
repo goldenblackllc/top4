@@ -23,6 +23,10 @@ export default function Home() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Reset pagination state when locale changes to prevent stale data
+    setCards([]);
+    setCurrentPage(1);
+    setHasMore(true);
     loadFeed(1);
   }, [locale]);
 
