@@ -30,6 +30,14 @@ export const translations = {
     en: "You've seen it all ✨",
     es: 'Ya lo has visto todo ✨',
   },
+  'home.refresh': {
+    en: 'Refresh',
+    es: 'Actualizar',
+  },
+  'home.refreshing': {
+    en: 'Refreshing...',
+    es: 'Actualizando...',
+  },
 
   // ─── Categories ────────────────────────────────────────
   'category.movies': {

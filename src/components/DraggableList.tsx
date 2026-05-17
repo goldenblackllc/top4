@@ -144,9 +144,9 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
           ? {
               rank,
               title: result.title,
-              subtitle: result.subtitle,
-              image_url: result.image_url,
-              external_id: result.id,
+              ...(result.subtitle != null && { subtitle: result.subtitle }),
+              ...(result.image_url != null && { image_url: result.image_url }),
+              ...(result.id != null && { external_id: result.id }),
             }
           : item
       )

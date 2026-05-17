@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
-import { upsertProfile, upsertEntry, getLikedCards } from '@/lib/firebase/firestore';
+import { getLikedCards } from '@/lib/firebase/firestore';
 import { uploadAvatar } from '@/lib/firebase/storage';
 import Header from '@/components/Header';
 import DraggableList from '@/components/DraggableList';
@@ -168,7 +168,16 @@ function ProfileContent() {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(async () => {
         try {
-          await upsertEntry(userId, category, newItems, locale);
+          const res = await fetch('/api/profile/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              entries: [{ category, items: newItems }],
+              locale,
+            }),
+          });
+          if (!res.ok) throw new Error('Server save failed');
           showToast(t('profile.saved'));
         } catch (err) {
           console.error('Auto-save error:', err);
@@ -187,11 +196,17 @@ function ProfileContent() {
     }
     setNameError(null);
     try {
-      await upsertProfile(userId, {
-        display_name: sanitizeName(name) || 'User',
-        avatar_url: url,
-        locale,
+      const res = await fetch('/api/profile/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          displayName: sanitizeName(name) || 'User',
+          avatarUrl: url,
+          locale,
+        }),
       });
+      if (!res.ok) throw new Error('Server save failed');
       showToast(t('profile.saved'));
     } catch (err) {
       console.error('Profile save error:', err);

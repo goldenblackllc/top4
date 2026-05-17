@@ -9,10 +9,9 @@ export async function GET(request: Request) {
     const categoryParam = searchParams.get('category') as Category | null;
     const locale = searchParams.get('locale') || 'en';
 
-    // Fetch entries filtered by locale
-    const snap = await db.collection('top4_entries')
-      .where('locale', '==', locale)
-      .get();
+    // Fetch ALL entries, then filter by locale in-memory.
+    // Include entries where locale matches OR locale is missing (pre-locale-feature entries).
+    const snap = await db.collection('top4_entries').get();
 
     // Group by category, filter for entries with likes
     const byCat: Record<string, Array<{
@@ -28,6 +27,11 @@ export async function GET(request: Request) {
 
     for (const doc of snap.docs) {
       const data = doc.data();
+
+      // Locale filter: include if locale matches, or if the entry has no locale set
+      const entryLocale = data.locale as string | undefined;
+      if (entryLocale && entryLocale !== locale) continue;
+
       const category = data.category as Category;
       if (!CATEGORIES.includes(category)) continue;
 

@@ -1,6 +1,8 @@
 import { db } from '@/lib/firebase/admin';
 import type { Top4Item, Category } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 const PAGE_SIZE = 20;
 
 type RawEntry = {
@@ -35,15 +37,19 @@ export async function GET(request: Request) {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const locale = searchParams.get('locale') || 'en';
 
-    // Fetch entries filtered by locale (Admin SDK, server-side)
-    const entriesSnap = await db.collection('top4_entries')
-      .where('locale', '==', locale)
-      .get();
+    // Fetch ALL entries, then filter by locale in-memory.
+    // We include entries where locale matches OR locale is missing (pre-locale-feature entries).
+    const entriesSnap = await db.collection('top4_entries').get();
 
-    // Parse and filter to entries with real content
+    // Parse and filter to entries with real content + matching locale
     const allEntries: RawEntry[] = [];
     for (const doc of entriesSnap.docs) {
       const data = doc.data();
+
+      // Locale filter: include if locale matches, or if the entry has no locale set
+      const entryLocale = data.locale as string | undefined;
+      if (entryLocale && entryLocale !== locale) continue;
+
       const items = data.items as Top4Item[] | undefined;
       if (!items?.length || !items.some((i) => i.title)) continue;
       allEntries.push({

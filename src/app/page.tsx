@@ -10,25 +10,74 @@ import Leaderboard from '@/components/Leaderboard';
 import { getCategoryConfig } from '@/lib/types';
 import { useLocale } from '@/lib/i18n';
 import type { Top4Card } from '@/lib/types';
+// Module-level cache — survives component remounts during client-side navigation
+let feedCache: { cards: Top4Card[]; page: number; hasMore: boolean; locale: string } | null = null;
 
 export default function Home() {
   const { t, locale } = useLocale();
   const categoryConfig = getCategoryConfig(locale);
 
-  const [cards, setCards] = useState<Top4Card[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Initialize from cache if available and same locale — no loading flash
+  const hasCachedData = feedCache && feedCache.locale === locale && feedCache.cards.length > 0;
+  const [cards, setCards] = useState<Top4Card[]>(hasCachedData ? feedCache!.cards : []);
+  const [loading, setLoading] = useState(!hasCachedData);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(hasCachedData ? feedCache!.page : 1);
+  const [hasMore, setHasMore] = useState(hasCachedData ? feedCache!.hasMore : true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
+  // Pull-to-refresh state
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const touchStartYRef = useRef(0);
+  const pullThreshold = 80;
+
   useEffect(() => {
-    // Reset pagination state when locale changes to prevent stale data
-    setCards([]);
-    setCurrentPage(1);
-    setHasMore(true);
-    loadFeed(1);
+    if (feedCache && feedCache.locale === locale && feedCache.cards.length > 0) {
+      // We already showed cached data — refresh silently in the background
+      handleRefresh();
+    } else {
+      // No cache or locale changed — full load with skeletons
+      setCards([]);
+      setCurrentPage(1);
+      setHasMore(true);
+      loadFeed(1);
+    }
   }, [locale]);
+
+  // Pull-to-refresh touch handlers
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0) {
+        touchStartYRef.current = e.touches[0].clientY;
+        setIsPulling(true);
+      }
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isPulling || loading || refreshing) return;
+      const delta = e.touches[0].clientY - touchStartYRef.current;
+      if (delta > 0 && window.scrollY === 0) {
+        setPullDistance(Math.min(delta * 0.5, pullThreshold * 1.5));
+      }
+    };
+    const handleTouchEnd = () => {
+      if (pullDistance >= pullThreshold && !refreshing) {
+        handleRefresh();
+      }
+      setPullDistance(0);
+      setIsPulling(false);
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isPulling, pullDistance, loading, refreshing]);
 
   // Infinite scroll — auto-load next batch when sentinel enters viewport
   useEffect(() => {
@@ -45,14 +94,32 @@ export default function Home() {
     return () => observer.disconnect();
   }, [hasMore, loadingMore, loading, currentPage]);
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      const res = await fetch(`/api/feed?page=1&locale=${locale}`, { cache: 'no-store' });
+      const data = await res.json();
+      const newCards = data.cards || [];
+      setCards(newCards);
+      setCurrentPage(1);
+      setHasMore(data.hasMore || false);
+      feedCache = { cards: newCards, page: 1, hasMore: data.hasMore || false, locale };
+    } catch (err) {
+      console.error('[Feed] Refresh failed:', err);
+    }
+    setRefreshing(false);
+  }
+
   async function loadFeed(page: number) {
     setLoading(true);
     try {
-      const res = await fetch(`/api/feed?page=${page}&locale=${locale}`);
+      const res = await fetch(`/api/feed?page=${page}&locale=${locale}`, { cache: 'no-store' });
       const data = await res.json();
-      setCards(data.cards || []);
+      const newCards = data.cards || [];
+      setCards(newCards);
       setCurrentPage(data.page || 1);
       setHasMore(data.hasMore || false);
+      feedCache = { cards: newCards, page: data.page || 1, hasMore: data.hasMore || false, locale };
     } catch (err) {
       console.error('[Feed] Load failed:', err);
     }
@@ -64,7 +131,7 @@ export default function Home() {
     setLoadingMore(true);
     const nextPage = currentPage + 1;
     try {
-      const res = await fetch(`/api/feed?page=${nextPage}&locale=${locale}`);
+      const res = await fetch(`/api/feed?page=${nextPage}&locale=${locale}`, { cache: 'no-store' });
       const data = await res.json();
       if (data.cards?.length > 0) {
         setCards((prev) => [...prev, ...data.cards]);
@@ -80,6 +147,31 @@ export default function Home() {
   return (
     <div style={{ minHeight: '100dvh' }}>
       <Header />
+
+      {/* Pull-to-refresh indicator */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: pullDistance > 0 ? pullDistance : 0,
+          overflow: 'hidden',
+          transition: isPulling ? 'none' : 'height 0.3s ease',
+        }}
+      >
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            border: '2.5px solid var(--color-border)',
+            borderTopColor: pullDistance >= pullThreshold ? 'var(--color-accent)' : 'var(--color-text-dim)',
+            animation: refreshing ? 'spin 0.6s linear infinite' : undefined,
+            transform: `rotate(${Math.min(pullDistance / pullThreshold, 1) * 360}deg)`,
+            transition: isPulling ? 'none' : 'transform 0.3s ease',
+          }}
+        />
+      </div>
 
       {/* Hero */}
       <section
@@ -155,6 +247,42 @@ export default function Home() {
             {categoryConfig[cat.key].emoji} {categoryConfig[cat.key].label}
           </Link>
         ))}
+      </div>
+
+      {/* Refresh button */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing || loading}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 16px',
+            borderRadius: 20,
+            fontSize: 12,
+            fontWeight: 600,
+            background: 'var(--color-bg-card)',
+            color: refreshing ? 'var(--color-text-dim)' : 'var(--color-accent)',
+            border: '1px solid var(--color-border)',
+            cursor: refreshing ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+            opacity: refreshing ? 0.7 : 1,
+          }}
+        >
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            style={{
+              animation: refreshing ? 'spin 0.8s linear infinite' : undefined,
+            }}
+          >
+            <path d="M21 2v6h-6" />
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+            <path d="M3 22v-6h6" />
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+          </svg>
+          {refreshing ? t('home.refreshing') : t('home.refresh')}
+        </button>
       </div>
 
       {/* Leaderboard */}
