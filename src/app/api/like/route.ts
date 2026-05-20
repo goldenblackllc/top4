@@ -1,6 +1,16 @@
 import { db } from '@/lib/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
+const NUM_SHARDS = 10;
+
+/**
+ * POST /api/like — Like or unlike an entry using distributed counters.
+ *
+ * Instead of writing directly to the entry's `like_count` (which is limited
+ * to 1 write/sec/doc), likes are written to a random shard subcollection.
+ * A cron job (/api/cron/aggregate-likes) periodically sums the shards
+ * and updates the canonical `like_count` on the parent entry.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -14,17 +24,29 @@ export async function POST(request: Request) {
     const likeRef = db.collection('likes').doc(likeDocId);
     const entryRef = db.collection('top4_entries').doc(entryId);
 
+    // Pick a random shard for this write
+    const shardId = String(Math.floor(Math.random() * NUM_SHARDS));
+    const shardRef = entryRef.collection('like_shards').doc(shardId);
+
     if (action === 'unlike') {
       const likeSnap = await likeRef.get();
       if (!likeSnap.exists) {
         return Response.json({ ok: true, alreadyUnliked: true });
       }
       await likeRef.delete();
-      await entryRef.set({ like_count: FieldValue.increment(-1) }, { merge: true });
+
+      // Decrement a random shard
+      await shardRef.set({ count: FieldValue.increment(-1) }, { merge: true });
+
+      // Mark entry for aggregation
+      await db.collection('pending_like_updates').doc(entryId).set({
+        updated_at: FieldValue.serverTimestamp(),
+      });
+
       return Response.json({ ok: true });
     }
 
-    // Like action
+    // ── Like action ──────────────────────────────────────────
     const likeSnap = await likeRef.get();
     if (likeSnap.exists) {
       return Response.json({ ok: true, alreadyLiked: true });
@@ -39,7 +61,13 @@ export async function POST(request: Request) {
       created_at: FieldValue.serverTimestamp(),
     });
 
-    await entryRef.set({ like_count: FieldValue.increment(1) }, { merge: true });
+    // Increment a random shard (instead of the entry doc directly)
+    await shardRef.set({ count: FieldValue.increment(1) }, { merge: true });
+
+    // Mark entry for aggregation
+    await db.collection('pending_like_updates').doc(entryId).set({
+      updated_at: FieldValue.serverTimestamp(),
+    });
 
     // Create notification for the owner (skip self-likes)
     if (likedBy !== ownerId) {

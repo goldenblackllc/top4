@@ -39,6 +39,26 @@ export async function POST(req: Request) {
 
       await db.collection('profiles').doc(userId).set(profilePayload, { merge: true });
       results.push('profile');
+
+      // Phase 4a: Denormalize profile data onto all user's entries
+      // so the feed/leaderboard can skip separate profile reads
+      const resolvedName = displayName ?? '';
+      const resolvedAvatar = avatarUrl ?? null;
+      const entriesSnap = await db
+        .collection('top4_entries')
+        .where('user_id', '==', userId)
+        .get();
+      if (!entriesSnap.empty) {
+        const denormBatch = db.batch();
+        for (const entryDoc of entriesSnap.docs) {
+          denormBatch.update(entryDoc.ref, {
+            owner_display_name: resolvedName,
+            owner_avatar_url: resolvedAvatar,
+          });
+        }
+        await denormBatch.commit();
+        results.push(`denormalized(${entriesSnap.size})`);
+      }
     }
 
     // --- Save entries ---

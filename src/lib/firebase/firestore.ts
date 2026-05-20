@@ -290,23 +290,45 @@ export async function getLikedCards(userId: string): Promise<Top4Card[]> {
   const snap = await getDocs(q);
   if (snap.empty) return [];
 
-  const cards: Top4Card[] = [];
-  for (const d of snap.docs) {
-    const entryId = d.data().entry_id as string;
-    const entrySnap = await getDoc(doc(db, 'top4_entries', entryId));
+  // Parallel batch: fetch all entries at once instead of one-by-one
+  const entryIds = snap.docs.map((d) => d.data().entry_id as string);
+  const entrySnaps = await Promise.all(
+    entryIds.map((eid) => getDoc(doc(db, 'top4_entries', eid))),
+  );
+
+  // Collect valid entries and unique user IDs
+  const validEntries: { entrySnap: typeof entrySnaps[0]; data: Record<string, unknown> }[] = [];
+  const userIds = new Set<string>();
+  for (const entrySnap of entrySnaps) {
     if (!entrySnap.exists()) continue;
-    const data = entrySnap.data();
-    const profile = await getProfile(data.user_id);
+    const data = entrySnap.data() as Record<string, unknown>;
+    validEntries.push({ entrySnap, data });
+    userIds.add(data.user_id as string);
+  }
+
+  // Parallel batch: fetch all profiles at once
+  const profileMap = new Map<string, UserProfile>();
+  await Promise.all(
+    [...userIds].map(async (uid) => {
+      const p = await getProfile(uid);
+      if (p) profileMap.set(uid, p);
+    }),
+  );
+
+  // Assemble cards
+  const cards: Top4Card[] = [];
+  for (const { entrySnap, data } of validEntries) {
+    const profile = profileMap.get(data.user_id as string);
     if (profile) {
       cards.push({
         profile,
         entry: {
           id: entrySnap.id,
-          user_id: data.user_id,
-          category: data.category,
-          items: data.items,
-          updated_at: data.updated_at?.toDate?.()?.toISOString() || '',
-          like_count: data.like_count || 0,
+          user_id: data.user_id as string,
+          category: data.category as Category,
+          items: data.items as Top4Item[],
+          updated_at: (data.updated_at as { toDate?: () => Date })?.toDate?.()?.toISOString() || '',
+          like_count: (data.like_count as number) || 0,
         },
       });
     }

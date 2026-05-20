@@ -3,115 +3,119 @@ import type { Top4Item, Category } from '@/lib/types';
 
 const CATEGORIES: Category[] = ['movies', 'tv', 'artists', 'books'];
 
+/**
+ * Leaderboard API — now uses targeted per-category queries
+ * instead of a full-collection scan.
+ *
+ * Uses denormalized profile data from entry docs when available,
+ * falling back to the profiles collection for unmigrated entries.
+ */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const categoryParam = searchParams.get('category') as Category | null;
     const locale = searchParams.get('locale') || 'en';
 
-    // Fetch ALL entries, then filter by locale in-memory.
-    // Include entries where locale matches OR locale is missing (pre-locale-feature entries).
-    const snap = await db.collection('top4_entries').get();
+    // Determine which categories to query
+    const categoriesToFetch = categoryParam && CATEGORIES.includes(categoryParam)
+      ? [categoryParam]
+      : CATEGORIES;
 
-    // Group by category, filter for entries with likes
-    const byCat: Record<string, Array<{
-      entryId: string;
-      userId: string;
-      items: Top4Item[];
-      likeCount: number;
-      updatedAt: string;
-      category: Category;
-    }>> = {};
+    // Fire targeted queries in parallel — one per category
+    const categoryResults = await Promise.all(
+      categoriesToFetch.map(async (cat) => {
+        const snap = await db
+          .collection('top4_entries')
+          .where('category', '==', cat)
+          .where('locale', '==', locale)
+          .orderBy('like_count', 'desc')
+          .limit(5)
+          .get();
 
-    for (const cat of CATEGORIES) byCat[cat] = [];
+        const entries: Array<{
+          entryId: string;
+          userId: string;
+          items: Top4Item[];
+          likeCount: number;
+          updatedAt: string;
+          category: Category;
+          ownerDisplayName: string;
+          ownerAvatarUrl: string | null;
+        }> = [];
 
-    for (const doc of snap.docs) {
-      const data = doc.data();
+        for (const doc of snap.docs) {
+          const data = doc.data();
+          const items = data.items as Top4Item[] | undefined;
+          const likeCount = (data.like_count as number) || 0;
+          if (!items?.length || !items[0]?.title || likeCount < 1) continue;
 
-      // Locale filter: include if locale matches, or if the entry has no locale set
-      const entryLocale = data.locale as string | undefined;
-      if (entryLocale && entryLocale !== locale) continue;
+          entries.push({
+            entryId: doc.id,
+            userId: data.user_id,
+            items,
+            likeCount,
+            updatedAt: data.updated_at?.toDate?.()?.toISOString() || new Date().toISOString(),
+            category: cat,
+            ownerDisplayName: data.owner_display_name || '',
+            ownerAvatarUrl: data.owner_avatar_url ?? null,
+          });
+        }
 
-      const category = data.category as Category;
-      if (!CATEGORIES.includes(category)) continue;
+        return { category: cat, entries };
+      }),
+    );
 
-      const items = data.items as Top4Item[] | undefined;
-      const likeCount = (data.like_count as number) || 0;
-      if (!items?.length || !items[0]?.title || likeCount < 1) continue;
-
-      byCat[category].push({
-        entryId: doc.id,
-        userId: data.user_id,
-        items,
-        likeCount,
-        updatedAt: data.updated_at?.toDate?.()?.toISOString() || new Date().toISOString(),
-        category,
-      });
+    // Collect users that need profile fetches (unmigrated entries)
+    const needsProfile = new Set<string>();
+    for (const { entries } of categoryResults) {
+      for (const e of entries) {
+        if (!e.ownerDisplayName) needsProfile.add(e.userId);
+      }
     }
 
-    // Sort each category by like_count desc, take top 5
-    for (const cat of CATEGORIES) {
-      byCat[cat].sort((a, b) => b.likeCount - a.likeCount);
-      byCat[cat] = byCat[cat].slice(0, 5);
-    }
-
-    // If a specific category was requested, return full cards for that category
-    if (categoryParam && CATEGORIES.includes(categoryParam)) {
-      const entries = byCat[categoryParam];
-
-      // Batch-load profiles
-      const userIds = [...new Set(entries.map((e) => e.userId))];
-      const profiles: Record<string, { id: string; display_name: string; avatar_url: string | null; created_at: string }> = {};
+    const fetchedProfiles: Record<string, { displayName: string; avatarUrl: string | null }> = {};
+    if (needsProfile.size > 0) {
       await Promise.all(
-        userIds.map(async (uid) => {
-          const profileSnap = await db.collection('profiles').doc(uid).get();
-          if (profileSnap.exists) {
-            const d = profileSnap.data()!;
-            profiles[uid] = {
-              id: uid,
-              display_name: d.display_name || 'Somebody',
-              avatar_url: d.avatar_url || null,
-              created_at: d.created_at?.toDate?.()?.toISOString() || new Date().toISOString(),
-            };
-          }
-        })
+        [...needsProfile].map(async (uid) => {
+          const snap = await db.collection('profiles').doc(uid).get();
+          const d = snap.exists ? snap.data() : null;
+          fetchedProfiles[uid] = {
+            displayName: d?.display_name || 'Somebody',
+            avatarUrl: d?.avatar_url || null,
+          };
+        }),
       );
+    }
 
-      const cards = entries
-        .filter((e) => profiles[e.userId])
-        .map((e) => ({
-          profile: profiles[e.userId],
-          entry: {
-            id: e.entryId,
-            user_id: e.userId,
-            category: e.category,
-            items: e.items,
-            updated_at: e.updatedAt,
-            like_count: e.likeCount,
-          },
-        }));
+    // Helper to resolve display name
+    const getName = (e: { userId: string; ownerDisplayName: string }) =>
+      e.ownerDisplayName || fetchedProfiles[e.userId]?.displayName || 'Somebody';
+    const getAvatar = (e: { userId: string; ownerAvatarUrl: string | null }) =>
+      e.ownerAvatarUrl ?? fetchedProfiles[e.userId]?.avatarUrl ?? null;
 
+    // If a specific category was requested, return full cards
+    if (categoryParam && CATEGORIES.includes(categoryParam)) {
+      const result = categoryResults[0];
+      const cards = result.entries.map((e) => ({
+        profile: {
+          id: e.userId,
+          display_name: getName(e),
+          avatar_url: getAvatar(e),
+          created_at: '',
+        },
+        entry: {
+          id: e.entryId,
+          user_id: e.userId,
+          category: e.category,
+          items: e.items,
+          updated_at: e.updatedAt,
+          like_count: e.likeCount,
+        },
+      }));
       return Response.json({ cards });
     }
 
-    // Otherwise return the summary leaderboard (for the homepage teaser)
-    const userIds = new Set<string>();
-    for (const cat of CATEGORIES) {
-      for (const e of byCat[cat]) userIds.add(e.userId);
-    }
-
-    const profiles: Record<string, { displayName: string; avatarUrl: string | null }> = {};
-    await Promise.all(
-      [...userIds].map(async (uid) => {
-        const profileSnap = await db.collection('profiles').doc(uid).get();
-        const d = profileSnap.exists ? profileSnap.data() : null;
-        profiles[uid] = {
-          displayName: d?.display_name || 'Somebody',
-          avatarUrl: d?.avatar_url || null,
-        };
-      })
-    );
-
+    // Summary leaderboard (all categories)
     const leaderboard: Record<string, Array<{
       entryId: string;
       userId: string;
@@ -122,21 +126,24 @@ export async function GET(request: Request) {
       likeCount: number;
     }>> = {};
 
-    for (const cat of CATEGORIES) {
-      leaderboard[cat] = byCat[cat].map((e) => ({
+    for (const { category, entries } of categoryResults) {
+      leaderboard[category] = entries.map((e) => ({
         entryId: e.entryId,
         userId: e.userId,
         topPick: e.items[0].title,
         topPickImage: e.items[0].image_url || null,
         likeCount: e.likeCount,
-        displayName: profiles[e.userId]?.displayName || 'Somebody',
-        avatarUrl: profiles[e.userId]?.avatarUrl || null,
+        displayName: getName(e),
+        avatarUrl: getAvatar(e),
       }));
     }
 
     return Response.json({ leaderboard });
   } catch (err) {
     console.error('[api/leaderboard] Error:', err);
-    return Response.json({ cards: [], leaderboard: {}, error: (err as Error).message }, { status: 500 });
+    return Response.json(
+      { cards: [], leaderboard: {}, error: (err as Error).message },
+      { status: 500 },
+    );
   }
 }
