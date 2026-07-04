@@ -34,16 +34,15 @@ const OUT_HEIGHT = 1280;
 
 // ── Helpers ──────────────────────────────────────────────────
 
-/** Render an SVG string to a PNG frame using sharp.create + composite (same as EarnestPage) */
-async function svgToFrame(svg: string, composites?: sharp.OverlayOptions[]): Promise<Buffer> {
-  const allComposites: sharp.OverlayOptions[] = [
-    { input: Buffer.from(svg), top: 0, left: 0 },
-    ...(composites || []),
-  ];
-  return sharp({
-    create: { width: WIDTH, height: HEIGHT, channels: 4, background: { r: 8, g: 8, b: 13, alpha: 1 } }
-  })
-    .composite(allComposites)
+/** Render an SVG string to a PNG frame, with optional image composites */
+async function svgToFrame(svg: string, extraComposites?: sharp.OverlayOptions[]): Promise<Buffer> {
+  let pipeline = sharp(Buffer.from(svg));
+
+  if (extraComposites && extraComposites.length > 0) {
+    pipeline = pipeline.composite(extraComposites);
+  }
+
+  return pipeline
     .resize(OUT_WIDTH, OUT_HEIGHT)
     .png()
     .toBuffer();
