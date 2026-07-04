@@ -24,9 +24,16 @@ export interface VideoConfig {
   categories: CategoryData[];
 }
 
-// 720×1280 keeps 9:16 ratio, stays HD, and fits in Vercel's memory limits
-const WIDTH = 720;
-const HEIGHT = 1280;
+// Design canvas (SVG coordinate space — all layout uses these)
+const WIDTH = 1080;
+const HEIGHT = 1920;
+
+// Output resolution (smaller to fit Vercel memory limits)
+const OUT_WIDTH = 720;
+const OUT_HEIGHT = 1280;
+
+// viewBox attribute for all SVGs — scales design coords to output size
+const VIEWBOX = `viewBox="0 0 ${WIDTH} ${HEIGHT}"`;
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -122,7 +129,7 @@ export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
     `<rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glow${i})"/>`
   ).join('\n    ');
 
-  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  const svg = `<svg width="${OUT_WIDTH}" height="${OUT_HEIGHT}" ${VIEWBOX} xmlns="http://www.w3.org/2000/svg">
     <rect width="${WIDTH}" height="${HEIGHT}" fill="#08080d"/>
     
     <defs>
@@ -164,7 +171,7 @@ export async function renderCategoryTitleFrame(
   cat: CategoryData
 ): Promise<Buffer> {
 
-  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  const svg = `<svg width="${OUT_WIDTH}" height="${OUT_HEIGHT}" ${VIEWBOX} xmlns="http://www.w3.org/2000/svg">
     <rect width="${WIDTH}" height="${HEIGHT}" fill="#08080d"/>
 
     <defs><radialGradient id="glow" cx="50%" cy="45%" r="45%">
@@ -219,7 +226,7 @@ export async function renderItemFrame(
   const imagePath = cat.imagePaths[itemIndex];
   const isArtist = cat.category === 'artists';
 
-  const bgSvg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  const bgSvg = `<svg width="${OUT_WIDTH}" height="${OUT_HEIGHT}" ${VIEWBOX} xmlns="http://www.w3.org/2000/svg">
     <rect width="${WIDTH}" height="${HEIGHT}" fill="#08080d"/>
     
     ${isNumber1 ? `<defs><radialGradient id="glow1" cx="50%" cy="50%" r="45%">
@@ -261,12 +268,18 @@ export async function renderItemFrame(
   const composites: sharp.OverlayOptions[] = [];
 
   // Add item image if available
+  // Note: composite positions use output pixels, not SVG design coords
+  const scale = OUT_WIDTH / WIDTH;
   if (imagePath) {
     try {
-      const imgSize = isNumber1 ? 320 : 260;
-      const imgTop = isNumber1 ? 340 : 380;
-      const imgLeft = Math.floor((WIDTH - imgSize) / 2);
-      const borderRadius = isArtist ? imgSize / 2 : 24;
+      const designImgSize = isNumber1 ? 320 : 260;
+      const designImgTop = isNumber1 ? 340 : 380;
+      const designImgLeft = Math.floor((WIDTH - designImgSize) / 2);
+      const borderRadius = isArtist ? Math.floor(designImgSize * scale / 2) : Math.floor(24 * scale);
+
+      const imgSize = Math.floor(designImgSize * scale);
+      const imgTop = Math.floor(designImgTop * scale);
+      const imgLeft = Math.floor(designImgLeft * scale);
 
       const roundedMask = Buffer.from(
         `<svg width="${imgSize}" height="${imgSize}"><rect width="${imgSize}" height="${imgSize}" rx="${borderRadius}" ry="${borderRadius}" fill="white"/></svg>`
@@ -278,15 +291,15 @@ export async function renderItemFrame(
         .png()
         .toBuffer();
 
-      const borderSize = imgSize + 8;
+      const borderSize = imgSize + 6;
       const borderSvg = Buffer.from(
         `<svg width="${borderSize}" height="${borderSize}">
-          <rect x="0" y="0" width="${borderSize}" height="${borderSize}" rx="${borderRadius + 4}" ry="${borderRadius + 4}" fill="none" stroke="${isNumber1 ? cat.color : 'rgba(255,255,255,0.15)'}" stroke-width="3"/>
+          <rect x="0" y="0" width="${borderSize}" height="${borderSize}" rx="${borderRadius + 3}" ry="${borderRadius + 3}" fill="none" stroke="${isNumber1 ? cat.color : 'rgba(255,255,255,0.15)'}" stroke-width="2"/>
         </svg>`
       );
 
       composites.push(
-        { input: borderSvg, top: imgTop - 4, left: imgLeft - 4 },
+        { input: borderSvg, top: imgTop - 3, left: imgLeft - 3 },
         { input: roundedImg, top: imgTop, left: imgLeft }
       );
     } catch {
@@ -318,7 +331,7 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
     <text x="${rowX + 42}" y="${y}" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="600" fill="rgba(255,255,255,0.8)">${title}</text>`;
   }).join('\n');
 
-  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+  const svg = `<svg width="${OUT_WIDTH}" height="${OUT_HEIGHT}" ${VIEWBOX} xmlns="http://www.w3.org/2000/svg">
     <rect width="${WIDTH}" height="${HEIGHT}" fill="#08080d"/>
 
     <defs><radialGradient id="glow" cx="50%" cy="40%" r="50%">

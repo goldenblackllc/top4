@@ -25,6 +25,7 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
     const filename = displayName
       ? `top4-${displayName.replace(/\s+/g, '-').toLowerCase()}.mp4`
       : `top4-video.mp4`;
+    const profileUrl = `https://www.top4.info/u/${userId}`;
 
     try {
       const res = await fetch(videoUrl);
@@ -34,12 +35,16 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
       }
       const blob = await res.blob();
 
-      // Try native share (mobile) — lets user share directly to TikTok, IG, etc.
-      if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
+      // Try native share with video file (best experience on mobile)
+      if (typeof navigator !== 'undefined' && navigator.share) {
         try {
           const file = new File([blob], filename, { type: 'video/mp4' });
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file] });
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: `${displayName || 'My'} Top 4`,
+              text: `Check out ${displayName || 'my'} Top 4 picks!`,
+            });
             setState('done');
             setTimeout(() => setState('idle'), 3000);
             return;
@@ -49,24 +54,30 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
             setState('idle');
             return;
           }
-          // Fall through to download
+        }
+
+        // File sharing not supported — share profile link instead (still opens share sheet)
+        try {
+          await navigator.share({
+            title: `${displayName || 'My'} Top 4`,
+            text: `Check out ${displayName || 'my'} Top 4 picks!`,
+            url: profileUrl,
+          });
+          // Also save the video locally since we already generated it
+          saveBlob(blob, filename);
+          setState('done');
+          setTimeout(() => setState('idle'), 3000);
+          return;
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') {
+            setState('idle');
+            return;
+          }
         }
       }
 
-      // Fallback: trigger file download via blob URL
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      // Delay cleanup so the download can start
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
-      }, 5000);
-
+      // Desktop fallback: download the video file
+      saveBlob(blob, filename);
       setState('done');
       setTimeout(() => setState('idle'), 3000);
     } catch (err) {
@@ -74,6 +85,21 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
       setState('idle');
     }
   }, [userId, displayName, state]);
+
+  /** Trigger a blob download */
+  function saveBlob(blob: Blob, filename: string) {
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    }, 5000);
+  }
 
   const iconColor = state === 'done'
     ? '#22c55e'
