@@ -127,6 +127,20 @@ export async function GET(
       categories: categoryDataList,
     };
 
+    // ── Set up fontconfig for Vercel/Lambda (no system fontconfig) ──
+    // Without this, sharp/librsvg can't find fonts and SVG text fails
+    const fontconfigPath = join(workDir, 'fonts.conf');
+    await fs.writeFile(fontconfigPath, `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>/usr/share/fonts</dir>
+  <dir>/usr/local/share/fonts</dir>
+  <dir>${workDir}</dir>
+  <cachedir>${workDir}/fc-cache</cachedir>
+</fontconfig>`, 'utf-8');
+    await fs.mkdir(join(workDir, 'fc-cache'), { recursive: true });
+    process.env.FONTCONFIG_FILE = fontconfigPath;
+
     // ── Render all frames ──
     console.log(`[Video] Rendering frames for ${categoryDataList.length} categories...`);
     const framePaths: string[] = [];
