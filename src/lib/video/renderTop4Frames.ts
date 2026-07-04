@@ -34,6 +34,21 @@ const OUT_HEIGHT = 1280;
 
 // ── Helpers ──────────────────────────────────────────────────
 
+/** Render an SVG string to a PNG frame using sharp.create + composite (same as EarnestPage) */
+async function svgToFrame(svg: string, composites?: sharp.OverlayOptions[]): Promise<Buffer> {
+  const allComposites: sharp.OverlayOptions[] = [
+    { input: Buffer.from(svg), top: 0, left: 0 },
+    ...(composites || []),
+  ];
+  return sharp({
+    create: { width: WIDTH, height: HEIGHT, channels: 4, background: { r: 8, g: 8, b: 13, alpha: 1 } }
+  })
+    .composite(allComposites)
+    .resize(OUT_WIDTH, OUT_HEIGHT)
+    .png()
+    .toBuffer();
+}
+
 function esc(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -157,7 +172,7 @@ export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
     <text x="${WIDTH / 2}" y="${HEIGHT - 120}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="400" fill="rgba(255,255,255,0.2)">www.top4.info</text>
   </svg>`;
 
-  return sharp(Buffer.from(svg)).resize(OUT_WIDTH, OUT_HEIGHT).png().toBuffer();
+  return svgToFrame(svg);
 }
 
 /**
@@ -204,7 +219,7 @@ export async function renderCategoryTitleFrame(
     <text x="${WIDTH / 2}" y="${HEIGHT - 120}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="400" fill="rgba(255,255,255,0.2)">www.top4.info</text>
   </svg>`;
 
-  return sharp(Buffer.from(svg)).resize(OUT_WIDTH, OUT_HEIGHT).png().toBuffer();
+  return svgToFrame(svg);
 }
 
 /**
@@ -298,11 +313,7 @@ export async function renderItemFrame(
     }
   }
 
-  return sharp(Buffer.from(bgSvg))
-    .composite(composites)
-    .resize(OUT_WIDTH, OUT_HEIGHT)
-    .png()
-    .toBuffer();
+  return svgToFrame(bgSvg, composites);
 }
 
 /**
@@ -355,5 +366,5 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
     <text x="${WIDTH / 2}" y="${HEIGHT - 100}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="26" font-weight="400" fill="rgba(255,255,255,0.15)">Pick your top 4. See what everyone else loves.</text>
   </svg>`;
 
-  return sharp(Buffer.from(svg)).resize(OUT_WIDTH, OUT_HEIGHT).png().toBuffer();
+  return svgToFrame(svg);
 }
