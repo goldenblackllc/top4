@@ -323,7 +323,7 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
     <text x="${rowX + 42}" y="${y}" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="600" fill="rgba(255,255,255,0.8)">${title}</text>`;
   }).join('\n');
 
-  const svg = `<svg width="${OUT_WIDTH}" height="${OUT_HEIGHT}" ${VIEWBOX} xmlns="http://www.w3.org/2000/svg">
+  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
     <rect width="${WIDTH}" height="${HEIGHT}" fill="#08080d"/>
 
     <defs><radialGradient id="glow" cx="50%" cy="40%" r="50%">
