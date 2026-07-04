@@ -319,133 +319,120 @@ function OGCard({
         </div>
       </div>
 
-      {/* Items grid — 2x2 layout */}
+      {/* Items — 2 rows of 2 */}
       <div
         style={{
           display: 'flex',
-          flexWrap: 'wrap',
+          flexDirection: 'column',
           gap: 10,
           padding: '4px 48px 0',
           flex: 1,
         }}
       >
-        {items.map((item, idx) => {
-          const isFirst = idx === 0;
-          return (
-            <div
-              key={idx}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                width: 'calc(50% - 5px)',
-                padding: '14px 16px',
-                borderRadius: 16,
-                background: isFirst
-                  ? `linear-gradient(135deg, ${cat.color}18 0%, ${cat.color}08 100%)`
-                  : 'rgba(255,255,255,0.04)',
-                border: isFirst
-                  ? `1px solid ${cat.color}30`
-                  : '1px solid rgba(255,255,255,0.06)',
-                gap: 14,
-              }}
-            >
-              {/* Item image or rank */}
-              {item.image_url ? (
-                <img
-                  src={item.image_url}
-                  width={entry.category === 'artists' ? 56 : 44}
-                  height={entry.category === 'artists' ? 56 : 62}
-                  style={{
-                    borderRadius: entry.category === 'artists' ? '50%' : 8,
-                    objectFit: 'cover',
-                    border: isFirst ? `2px solid ${cat.color}50` : '1px solid rgba(255,255,255,0.1)',
-                    flexShrink: 0,
-                  }}
-                />
-              ) : (
+        {[items.slice(0, 2), items.slice(2, 4)].map((row, rowIdx) => (
+          <div
+            key={rowIdx}
+            style={{
+              display: 'flex',
+              gap: 10,
+              flex: 1,
+            }}
+          >
+            {row.map((item, colIdx) => {
+              const idx = rowIdx * 2 + colIdx;
+              const isFirst = idx === 0;
+              return (
                 <div
+                  key={idx}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 48,
-                    height: 48,
-                    borderRadius: entry.category === 'artists' ? '50%' : 10,
-                    background: isFirst ? cat.color : 'rgba(255,255,255,0.08)',
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: isFirst ? '#08080d' : '#71717a',
-                    flexShrink: 0,
+                    flex: 1,
+                    padding: '16px 18px',
+                    borderRadius: 16,
+                    background: isFirst
+                      ? `linear-gradient(135deg, ${cat.color}18 0%, ${cat.color}08 100%)`
+                      : 'rgba(255,255,255,0.04)',
+                    border: isFirst
+                      ? `1px solid ${cat.color}30`
+                      : '1px solid rgba(255,255,255,0.06)',
+                    gap: 14,
                   }}
                 >
-                  {item.rank ?? idx + 1}
-                </div>
-              )}
+                  {/* Rank badge */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      background: isFirst ? cat.color : 'rgba(255,255,255,0.08)',
+                      fontSize: 20,
+                      fontWeight: 800,
+                      color: isFirst ? '#08080d' : '#a1a1aa',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {item.rank ?? idx + 1}
+                  </div>
 
-              {/* Title + subtitle + rank */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  flex: 1,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
+                  {/* Image (if available) */}
                   {item.image_url && (
+                    <img
+                      src={item.image_url}
+                      width={entry.category === 'artists' ? 52 : 40}
+                      height={entry.category === 'artists' ? 52 : 56}
+                      style={{
+                        borderRadius: entry.category === 'artists' ? '50%' : 8,
+                        objectFit: 'cover',
+                        border: isFirst
+                          ? `2px solid ${cat.color}50`
+                          : '1px solid rgba(255,255,255,0.1)',
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
+
+                  {/* Title + subtitle */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      flex: 1,
+                      overflow: 'hidden',
+                    }}
+                  >
                     <span
                       style={{
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 24,
-                        height: 24,
-                        borderRadius: 7,
-                        background: isFirst ? cat.color : 'rgba(255,255,255,0.1)',
-                        fontSize: 13,
-                        fontWeight: 800,
-                        color: isFirst ? '#08080d' : '#a1a1aa',
-                        flexShrink: 0,
+                        fontSize: isFirst ? 20 : 17,
+                        fontWeight: isFirst ? 700 : 600,
+                        color: isFirst ? '#ffffff' : '#d4d4d8',
+                        letterSpacing: '-0.3px',
                       }}
                     >
-                      {item.rank ?? idx + 1}
+                      {item.title.length > 20 ? item.title.slice(0, 18) + '…' : item.title}
                     </span>
-                  )}
-                  <span
-                    style={{
-                      display: 'flex',
-                      fontSize: isFirst ? 20 : 18,
-                      fontWeight: isFirst ? 700 : 600,
-                      color: isFirst ? '#ffffff' : '#d4d4d8',
-                      letterSpacing: '-0.3px',
-                    }}
-                  >
-                    {item.title.length > 22 ? item.title.slice(0, 20) + '...' : item.title}
-                  </span>
+                    {item.subtitle && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          fontSize: 13,
+                          color: '#71717a',
+                          marginTop: 3,
+                        }}
+                      >
+                        {item.subtitle.length > 24 ? item.subtitle.slice(0, 22) + '…' : item.subtitle}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {item.subtitle && (
-                  <span
-                    style={{
-                      display: 'flex',
-                      fontSize: 13,
-                      color: '#71717a',
-                      marginTop: 3,
-                      marginLeft: item.image_url ? 32 : 0,
-                    }}
-                  >
-                    {item.subtitle.length > 28 ? item.subtitle.slice(0, 26) + '...' : item.subtitle}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {/* Footer */}
