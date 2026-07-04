@@ -24,8 +24,9 @@ export interface VideoConfig {
   categories: CategoryData[];
 }
 
-const WIDTH = 1080;
-const HEIGHT = 1920;
+// 720×1280 keeps 9:16 ratio, stays HD, and fits in Vercel's memory limits
+const WIDTH = 720;
+const HEIGHT = 1280;
 
 // ── Helpers ──────────────────────────────────────────────────
 

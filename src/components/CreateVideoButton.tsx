@@ -22,22 +22,24 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
     setState('creating');
 
     const videoUrl = `/api/video/${userId}`;
+    const filename = displayName
+      ? `top4-${displayName.replace(/\s+/g, '-').toLowerCase()}.mp4`
+      : `top4-video.mp4`;
 
     try {
-      // On mobile: fetch the video, then share via native share sheet
+      const res = await fetch(videoUrl);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed' }));
+        throw new Error(err.detail || err.error || 'Video generation failed');
+      }
+      const blob = await res.blob();
+
+      // Try native share (mobile) — lets user share directly to TikTok, IG, etc.
       if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
         try {
-          const res = await fetch(videoUrl);
-          if (!res.ok) throw new Error('Failed');
-          const blob = await res.blob();
-          const filename = displayName
-            ? `top4-${displayName.replace(/\s+/g, '-').toLowerCase()}.mp4`
-            : `top4-video.mp4`;
           const file = new File([blob], filename, { type: 'video/mp4' });
-          const shareData = { files: [file] };
-
-          if (navigator.canShare(shareData)) {
-            await navigator.share(shareData);
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file] });
             setState('done');
             setTimeout(() => setState('idle'), 3000);
             return;
@@ -47,15 +49,26 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
             setState('idle');
             return;
           }
-          // Fall through to direct download
+          // Fall through to download
         }
       }
 
-      // Desktop: open in new tab — browser downloads via Content-Disposition header
-      window.open(videoUrl, '_blank');
+      // Fallback: trigger file download via blob URL
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      // Delay cleanup so the download can start
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      }, 5000);
 
       setState('done');
-      setTimeout(() => setState('idle'), 5000);
+      setTimeout(() => setState('idle'), 3000);
     } catch (err) {
       console.error('Video creation failed:', err);
       setState('idle');
