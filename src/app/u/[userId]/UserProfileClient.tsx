@@ -8,6 +8,7 @@ import { useLocale } from '@/lib/i18n';
 import Header from '@/components/Header';
 import ShareButton from '@/components/ShareButton';
 import SaveCardButton from '@/components/SaveCardButton';
+import CreateVideoButton from '@/components/CreateVideoButton';
 
 export default function UserProfileClient({ userId }: { userId: string }) {
   const { t, locale } = useLocale();
@@ -113,11 +114,15 @@ export default function UserProfileClient({ userId }: { userId: string }) {
           </p>
 
           {/* Share profile button */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 16 }}>
             <ShareButton
               url={typeof window !== 'undefined' ? window.location.href : `/u/${userId}`}
               title={`${profile.display_name}'s Top 4 Lists`}
               text={`Check out ${profile.display_name}'s favorite movies, shows, artists, and books on Top4!`}
+            />
+            <CreateVideoButton
+              userId={userId}
+              displayName={profile.display_name}
             />
           </div>
         </div>
