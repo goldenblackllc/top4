@@ -21,50 +21,41 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
     if (state === 'creating') return;
     setState('creating');
 
+    const videoUrl = `/api/video/${userId}`;
+
     try {
-      const res = await fetch(`/api/video/${userId}`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Failed' }));
-        throw new Error(err.detail || err.error || 'Video generation failed');
-      }
-
-      const blob = await res.blob();
-      const filename = displayName
-        ? `top4-${displayName.replace(/\s+/g, '-').toLowerCase()}.mp4`
-        : `top4-video.mp4`;
-
-      // Try native share with the video file on mobile
+      // On mobile: fetch the video, then share via native share sheet
       if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
-        const file = new File([blob], filename, { type: 'video/mp4' });
-        const shareData = { files: [file] };
+        try {
+          const res = await fetch(videoUrl);
+          if (!res.ok) throw new Error('Failed');
+          const blob = await res.blob();
+          const filename = displayName
+            ? `top4-${displayName.replace(/\s+/g, '-').toLowerCase()}.mp4`
+            : `top4-video.mp4`;
+          const file = new File([blob], filename, { type: 'video/mp4' });
+          const shareData = { files: [file] };
 
-        if (navigator.canShare(shareData)) {
-          try {
+          if (navigator.canShare(shareData)) {
             await navigator.share(shareData);
             setState('done');
             setTimeout(() => setState('idle'), 3000);
             return;
-          } catch (err) {
-            if (err instanceof Error && err.name === 'AbortError') {
-              setState('idle');
-              return;
-            }
           }
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') {
+            setState('idle');
+            return;
+          }
+          // Fall through to direct download
         }
       }
 
-      // Fallback: trigger file download
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Desktop: open in new tab — browser downloads via Content-Disposition header
+      window.open(videoUrl, '_blank');
 
       setState('done');
-      setTimeout(() => setState('idle'), 3000);
+      setTimeout(() => setState('idle'), 5000);
     } catch (err) {
       console.error('Video creation failed:', err);
       setState('idle');
