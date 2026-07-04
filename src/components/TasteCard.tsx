@@ -7,6 +7,7 @@ import { auth } from '@/lib/firebase/config';
 import { getProfile } from '@/lib/firebase/firestore';
 import { getCategoryConfig, type Top4Card } from '@/lib/types';
 import { useLocale } from '@/lib/i18n';
+import ShareButton from '@/components/ShareButton';
 
 interface TasteCardProps {
   card: Top4Card;
@@ -233,17 +234,23 @@ export default function TasteCard({ card, index = 0 }: TasteCardProps) {
           ))}
         </div>
 
-        {/* Footer: like button */}
+        {/* Footer: like + share */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
             marginTop: 14,
             paddingTop: 12,
             borderTop: '1px solid var(--color-border)',
           }}
         >
+          <ShareButton
+            url={typeof window !== 'undefined' ? `${window.location.origin}/u/${entry.user_id}` : `/u/${entry.user_id}`}
+            title={`${profile.display_name}'s Top 4 ${config.label}`}
+            text={`Check out ${profile.display_name}'s Top 4 ${config.label} list on Top4!`}
+            compact
+          />
           <button
             onClick={handleLike}
             disabled={!currentUserId || liking}

@@ -56,17 +56,26 @@ async function collectStats() {
   const newLists = newListsSnap.data().count;
 
   // 4. Total visits — tracked via a `page_views` collection.
-  //    Each doc: { path, count, date (YYYY-MM-DD) }
-  //    If you don't have this collection yet, this returns 0 gracefully.
+  //    Each doc is a single page view: { path, date, timestamp }
   let totalVisits = 0;
+  let yesterdayVisits = 0;
   try {
-    const visitsSnap = await db.collection('page_views').count().get();
-    totalVisits = visitsSnap.data().count;
+    const totalVisitsSnap = await db.collection('page_views').count().get();
+    totalVisits = totalVisitsSnap.data().count;
+
+    const yesterdayVisitsSnap = await db
+      .collection('page_views')
+      .where('timestamp', '>=', since)
+      .where('timestamp', '<', until)
+      .count()
+      .get();
+    yesterdayVisits = yesterdayVisitsSnap.data().count;
   } catch {
     totalVisits = 0;
+    yesterdayVisits = 0;
   }
 
-  return { totalUsers, newUsers, totalLists, newLists, totalVisits, since, until };
+  return { totalUsers, newUsers, totalLists, newLists, totalVisits, yesterdayVisits, since, until };
 }
 
 // ─── email builder ──────────────────────────────────────────────────────────
@@ -133,7 +142,8 @@ function buildEmailHtml(stats: Awaited<ReturnType<typeof collectStats>>): string
                     📈 Traffic
                   </td>
                 </tr>
-                ${row('Total Page Views (all-time)', stats.totalVisits.toLocaleString())}
+                ${row('Total Page Views', stats.totalVisits.toLocaleString())}
+                ${row('New Page Views Yesterday', `+${stats.yesterdayVisits.toLocaleString()}`, true)}
 
               </table>
             </td>

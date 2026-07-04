@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import PageViewTracker from "@/components/PageViewTracker";
 import { LocaleProvider } from "@/lib/i18n";
 
 export const viewport: Viewport = {
@@ -12,6 +13,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://top4.app'),
   title: "Top4 — Share Your Favorite Things",
   description:
     "Pick your top 4 movies, artists, and books. See what everyone else loves. Simple, fast, and fun.",
@@ -51,6 +53,7 @@ export default function RootLayout({
       <body>
         <LocaleProvider>
           <ServiceWorkerRegistrar />
+          <PageViewTracker />
           {children}
         </LocaleProvider>
       </body>
