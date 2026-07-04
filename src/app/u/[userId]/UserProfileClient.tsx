@@ -7,6 +7,7 @@ import { getCategoryConfig, type Top4Entry, type UserProfile } from '@/lib/types
 import { useLocale } from '@/lib/i18n';
 import Header from '@/components/Header';
 import ShareButton from '@/components/ShareButton';
+import SaveCardButton from '@/components/SaveCardButton';
 
 export default function UserProfileClient({ userId }: { userId: string }) {
   const { t, locale } = useLocale();
@@ -187,6 +188,11 @@ function EntryCard({ entry, categoryConfig, userId }: { entry: Top4Entry; catego
             text={`Check out this Top 4 ${categoryLabels[entry.category] || entry.category} list on Top4!`}
             compact
             style={{ marginLeft: (entry.like_count ?? 0) > 0 ? 0 : 'auto' }}
+          />
+          <SaveCardButton
+            entryId={entry.id}
+            filename={`top4-${entry.category}`}
+            compact
           />
         </div>
 

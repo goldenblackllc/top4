@@ -8,6 +8,7 @@ import { getProfile } from '@/lib/firebase/firestore';
 import { getCategoryConfig, type Top4Card } from '@/lib/types';
 import { useLocale } from '@/lib/i18n';
 import ShareButton from '@/components/ShareButton';
+import SaveCardButton from '@/components/SaveCardButton';
 
 interface TasteCardProps {
   card: Top4Card;
@@ -249,6 +250,11 @@ export default function TasteCard({ card, index = 0 }: TasteCardProps) {
             url={typeof window !== 'undefined' ? `${window.location.origin}/u/${entry.user_id}` : `/u/${entry.user_id}`}
             title={`${profile.display_name}'s Top 4 ${config.label}`}
             text={`Check out ${profile.display_name}'s Top 4 ${config.label} list on Top4!`}
+            compact
+          />
+          <SaveCardButton
+            entryId={entry.id}
+            filename={`${profile.display_name}-top4-${entry.category}`}
             compact
           />
           <button

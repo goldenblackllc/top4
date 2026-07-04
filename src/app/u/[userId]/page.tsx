@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { db } from '@/lib/firebase/admin';
 import UserProfileClient from './UserProfileClient';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://top4.app';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.top4.info';
 
 const CATEGORY_LABELS: Record<string, string> = {
   movies: 'Movies',

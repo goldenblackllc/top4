@@ -13,7 +13,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://top4.app'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://www.top4.info'),
   title: "Top4 — Share Your Favorite Things",
   description:
     "Pick your top 4 movies, artists, and books. See what everyone else loves. Simple, fast, and fun.",
