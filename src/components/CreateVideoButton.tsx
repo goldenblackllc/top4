@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 
 interface CreateVideoButtonProps {
   userId: string;
@@ -10,84 +10,85 @@ interface CreateVideoButtonProps {
 }
 
 /**
- * Generates and downloads an MP4 video reveal of a user's Top 4 lists.
- * The video is generated server-side and streamed to the client.
+ * Two-step video creation:
+ * 1. Click "Create Video" → generates the MP4
+ * 2. Shows "Share" + "Save" buttons → user taps Share to open native share sheet
+ *    (fresh user gesture = no popup blocker)
  */
 export default function CreateVideoButton({ userId, displayName, compact, style }: CreateVideoButtonProps) {
-  const [state, setState] = useState<'idle' | 'creating' | 'done'>('idle');
+  const [state, setState] = useState<'idle' | 'creating' | 'ready'>('idle');
   const [hovered, setHovered] = useState(false);
+  const blobRef = useRef<Blob | null>(null);
 
+  const filename = displayName
+    ? `top4-${displayName.replace(/\s+/g, '-').toLowerCase()}.mp4`
+    : `top4-video.mp4`;
+
+  // Step 1: Generate the video
   const handleCreate = useCallback(async () => {
     if (state === 'creating') return;
     setState('creating');
 
-    const videoUrl = `/api/video/${userId}`;
-    const filename = displayName
-      ? `top4-${displayName.replace(/\s+/g, '-').toLowerCase()}.mp4`
-      : `top4-video.mp4`;
-    const profileUrl = `https://www.top4.info/u/${userId}`;
-
     try {
-      const res = await fetch(videoUrl);
+      const res = await fetch(`/api/video/${userId}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed' }));
         throw new Error(err.detail || err.error || 'Video generation failed');
       }
-      const blob = await res.blob();
-
-      // Try native share with video file (best experience on mobile)
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        try {
-          const file = new File([blob], filename, { type: 'video/mp4' });
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: `${displayName || 'My'} Top 4`,
-              text: `Check out ${displayName || 'my'} Top 4 picks!`,
-            });
-            setState('done');
-            setTimeout(() => setState('idle'), 3000);
-            return;
-          }
-        } catch (err) {
-          if (err instanceof Error && err.name === 'AbortError') {
-            setState('idle');
-            return;
-          }
-        }
-
-        // File sharing not supported — share profile link instead (still opens share sheet)
-        try {
-          await navigator.share({
-            title: `${displayName || 'My'} Top 4`,
-            text: `Check out ${displayName || 'my'} Top 4 picks!`,
-            url: profileUrl,
-          });
-          // Also save the video locally since we already generated it
-          saveBlob(blob, filename);
-          setState('done');
-          setTimeout(() => setState('idle'), 3000);
-          return;
-        } catch (err) {
-          if (err instanceof Error && err.name === 'AbortError') {
-            setState('idle');
-            return;
-          }
-        }
-      }
-
-      // Desktop fallback: download the video file
-      saveBlob(blob, filename);
-      setState('done');
-      setTimeout(() => setState('idle'), 3000);
+      blobRef.current = await res.blob();
+      setState('ready');
     } catch (err) {
       console.error('Video creation failed:', err);
       setState('idle');
     }
-  }, [userId, displayName, state]);
+  }, [userId, state]);
 
-  /** Trigger a blob download */
-  function saveBlob(blob: Blob, filename: string) {
+  // Step 2a: Share (fresh user gesture → share sheet opens)
+  const handleShare = useCallback(async () => {
+    const blob = blobRef.current;
+    if (!blob) return;
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        // Try sharing the video file
+        const file = new File([blob], filename, { type: 'video/mp4' });
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: `${displayName || 'My'} Top 4`,
+            text: `Check out ${displayName || 'my'} Top 4 picks!`,
+          });
+          setState('idle');
+          blobRef.current = null;
+          return;
+        }
+
+        // Fallback: share profile link
+        await navigator.share({
+          title: `${displayName || 'My'} Top 4`,
+          text: `Check out ${displayName || 'my'} Top 4 picks on Top4!`,
+          url: `https://www.top4.info/u/${userId}`,
+        });
+        setState('idle');
+        blobRef.current = null;
+        return;
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        // User cancelled — keep ready state so they can try again
+        return;
+      }
+    }
+
+    // If share API unavailable, download instead
+    handleSave();
+  }, [filename, displayName, userId]);
+
+  // Step 2b: Save/download
+  const handleSave = useCallback(() => {
+    const blob = blobRef.current;
+    if (!blob) return;
+
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
@@ -99,31 +100,102 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
     }, 5000);
+
+    setState('idle');
+    blobRef.current = null;
+  }, [filename]);
+
+  // Dismiss
+  const handleDismiss = useCallback(() => {
+    setState('idle');
+    blobRef.current = null;
+  }, []);
+
+  // ── Ready state: show Share + Save buttons ──
+  if (state === 'ready') {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        ...style,
+      }}>
+        <button
+          type="button"
+          onClick={handleShare}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            background: 'var(--color-accent)',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '6px 14px',
+            borderRadius: 8,
+            color: 'white',
+            fontSize: 13,
+            fontWeight: 700,
+            fontFamily: 'inherit',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+            <polyline points="16 6 12 2 8 6" />
+            <line x1="12" y1="2" x2="12" y2="15" />
+          </svg>
+          Share
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            background: 'transparent',
+            border: '1px solid var(--color-border)',
+            cursor: 'pointer',
+            padding: '5px 12px',
+            borderRadius: 8,
+            color: 'var(--color-text-dim)',
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: 'inherit',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label="Dismiss"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '4px',
+            borderRadius: 6,
+            color: 'var(--color-text-dim)',
+            fontSize: 16,
+            fontFamily: 'inherit',
+            opacity: 0.5,
+          }}
+        >
+          ✕
+        </button>
+      </div>
+    );
   }
 
-  const iconColor = state === 'done'
-    ? '#22c55e'
-    : hovered
-      ? 'var(--color-accent)'
-      : 'var(--color-text-dim)';
-
-  const buttonStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    background: 'transparent',
-    border: 'none',
-    cursor: state === 'creating' ? 'wait' : 'pointer',
-    padding: '6px 10px',
-    borderRadius: 8,
-    color: iconColor,
-    fontSize: 13,
-    fontWeight: 600,
-    fontFamily: 'inherit',
-    transition: 'color 0.2s ease',
-    opacity: state === 'creating' ? 0.6 : 1,
-    ...style,
-  };
+  // ── Idle / Creating state ──
+  const iconColor = hovered ? 'var(--color-accent)' : 'var(--color-text-dim)';
 
   return (
     <button
@@ -131,35 +203,38 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
       onClick={handleCreate}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={buttonStyle}
-      aria-label={state === 'done' ? 'Video saved' : 'Create video'}
-      title={
-        state === 'creating'
-          ? 'Creating video...'
-          : state === 'done'
-            ? 'Video saved!'
-            : 'Create a TikTok/Reels-ready video of your Top 4'
-      }
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        background: 'transparent',
+        border: 'none',
+        cursor: state === 'creating' ? 'wait' : 'pointer',
+        padding: '6px 10px',
+        borderRadius: 8,
+        color: state === 'creating' ? 'var(--color-text-dim)' : iconColor,
+        fontSize: 13,
+        fontWeight: 600,
+        fontFamily: 'inherit',
+        transition: 'color 0.2s ease',
+        opacity: state === 'creating' ? 0.6 : 1,
+        ...style,
+      }}
+      aria-label="Create video"
+      title={state === 'creating' ? 'Creating video...' : 'Create a TikTok/Reels-ready video of your Top 4'}
     >
-      {state === 'done' ? (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      ) : state === 'creating' ? (
+      {state === 'creating' ? (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
           <path d="M21 12a9 9 0 1 1-6.219-8.56" />
         </svg>
       ) : (
-        /* Video / clapperboard icon */
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="23 7 16 12 23 17 23 7" />
           <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
         </svg>
       )}
       {!compact && (
-        <span>
-          {state === 'creating' ? 'Creating...' : state === 'done' ? 'Saved!' : 'Create Video'}
-        </span>
+        <span>{state === 'creating' ? 'Creating...' : 'Create Video'}</span>
       )}
     </button>
   );
