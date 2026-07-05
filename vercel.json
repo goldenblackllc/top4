@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/aggregate-likes",
-      "schedule": "* * * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }
