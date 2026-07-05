@@ -14,11 +14,9 @@ export const dynamic = 'force-dynamic';
  * Safe to run concurrently — each entry is processed independently.
  */
 export async function GET(request: Request) {
-  // Optional: verify cron secret
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get('secret');
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && secret !== cronSecret) {
+  // Verify cron secret (Vercel sends it as Authorization: Bearer <token>)
+  const authHeader = request.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
