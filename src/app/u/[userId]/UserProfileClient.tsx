@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { auth } from '@/lib/firebase/config';
 import { getProfile, getEntries } from '@/lib/firebase/firestore';
 import { getCategoryConfig, type Top4Entry, type UserProfile } from '@/lib/types';
 import { useLocale } from '@/lib/i18n';
