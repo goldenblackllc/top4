@@ -179,15 +179,37 @@ export async function GET(
       categories: categoryDataList,
     };
 
+    // ── Copy bundled Inter fonts into workdir so fontconfig/librsvg can find them ──
+    // On Vercel Lambda, Inter isn't a system font — we bundle .ttf files in public/fonts/
+    // and copy them to the workdir where fontconfig is configured to look.
+    let fontsSourceDir = join(process.cwd(), 'public', 'fonts');
+    try {
+      await fs.access(fontsSourceDir);
+    } catch {
+      // Fallback for Vercel bundled layout where process.cwd() differs
+      fontsSourceDir = join(__dirname, '..', '..', '..', '..', 'public', 'fonts');
+    }
+    try {
+      const fontFiles = await fs.readdir(fontsSourceDir);
+      for (const f of fontFiles) {
+        if (f.endsWith('.ttf')) {
+          await fs.copyFile(join(fontsSourceDir, f), join(workDir, f));
+        }
+      }
+      console.log('[Video] Copied Inter font files to workdir');
+    } catch (e) {
+      console.warn('[Video] Could not copy font files:', e);
+    }
+
     // ── Set up fontconfig for Vercel/Lambda (no system fontconfig) ──
     // Without this, sharp/librsvg can't find fonts and SVG text fails
     const fontconfigPath = join(workDir, 'fonts.conf');
     await fs.writeFile(fontconfigPath, `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
+  <dir>${workDir}</dir>
   <dir>/usr/share/fonts</dir>
   <dir>/usr/local/share/fonts</dir>
-  <dir>${workDir}</dir>
   <cachedir>${workDir}/fc-cache</cachedir>
 </fontconfig>`, 'utf-8');
     await fs.mkdir(join(workDir, 'fc-cache'), { recursive: true });

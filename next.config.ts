@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Ensure font files + ffmpeg binary are bundled into Vercel serverless functions
+  // (they're loaded at runtime via file paths, so @vercel/nft can't auto-detect them)
+  outputFileTracingIncludes: {
+    '/api/video/*': [
+      './public/fonts/**/*',
+      './node_modules/ffmpeg-static/**/*',
+    ],
+  },
+  serverExternalPackages: ['sharp', 'ffmpeg-static'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'image.tmdb.org' },           // TMDB movie posters
