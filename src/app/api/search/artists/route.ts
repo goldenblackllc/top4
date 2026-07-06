@@ -1,40 +1,7 @@
 import { NextResponse } from 'next/server';
+import { getSpotifyAccessToken } from '@/lib/spotify';
 
-const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SEARCH_URL = 'https://api.spotify.com/v1/search';
-
-let cachedToken: { token: string; expires: number } | null = null;
-
-async function getAccessToken(): Promise<string | null> {
-  // Return cached token if still valid
-  if (cachedToken && Date.now() < cachedToken.expires) {
-    return cachedToken.token;
-  }
-
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) return null;
-
-  const res = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
-    },
-    body: 'grant_type=client_credentials',
-  });
-
-  if (!res.ok) return null;
-
-  const data = await res.json();
-  cachedToken = {
-    token: data.access_token,
-    expires: Date.now() + (data.expires_in - 60) * 1000, // refresh 60s early
-  };
-
-  return cachedToken.token;
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -44,7 +11,7 @@ export async function GET(request: Request) {
     return NextResponse.json([]);
   }
 
-  const token = await getAccessToken();
+  const token = await getSpotifyAccessToken();
   if (!token) {
     return NextResponse.json(
       { error: 'Spotify credentials not configured' },
@@ -62,8 +29,6 @@ export async function GET(request: Request) {
     );
 
     if (!res.ok) {
-      // Token may have expired, clear cache
-      cachedToken = null;
       return NextResponse.json(
         { error: 'Spotify API error' },
         { status: res.status }

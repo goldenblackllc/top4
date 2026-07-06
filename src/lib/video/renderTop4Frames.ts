@@ -7,6 +7,7 @@ export interface Top4Item {
   title: string;
   subtitle?: string;
   image_url?: string;
+  preview_url?: string;
 }
 
 export interface CategoryData {
@@ -16,6 +17,7 @@ export interface CategoryData {
   color: string;
   items: Top4Item[];
   imagePaths: (string | null)[];  // local paths to downloaded item images
+  audioPaths: (string | null)[];  // local paths to downloaded audio clips
 }
 
 export interface VideoConfig {
@@ -34,15 +36,34 @@ const OUT_HEIGHT = 1280;
 
 // ── Helpers ──────────────────────────────────────────────────
 
+/** Render a raw SVG string to a PNG buffer at exact pixel dimensions.
+ *  librsvg may honour system DPI, producing images larger than the
+ *  declared width/height — this helper forces the output size. */
+async function renderSvgToPng(svg: string, w: number, h: number): Promise<Buffer> {
+  return sharp(Buffer.from(svg), { density: 72 })
+    .resize(w, h)
+    .png()
+    .toBuffer();
+}
+
 /** Render an SVG string to a PNG frame, with optional image composites */
 async function svgToFrame(svg: string, extraComposites?: sharp.OverlayOptions[]): Promise<Buffer> {
-  let pipeline = sharp(Buffer.from(svg));
+  // Render the background SVG to exactly WIDTH×HEIGHT
+  const basePng = await renderSvgToPng(svg, WIDTH, HEIGHT);
 
+  // Composite images at full design resolution (1080×1920)
+  let fullRes: Buffer;
   if (extraComposites && extraComposites.length > 0) {
-    pipeline = pipeline.composite(extraComposites);
+    fullRes = await sharp(basePng)
+      .composite(extraComposites)
+      .png()
+      .toBuffer();
+  } else {
+    fullRes = basePng;
   }
 
-  return pipeline
+  // Then resize to output resolution in a separate pass
+  return sharp(fullRes)
     .resize(OUT_WIDTH, OUT_HEIGHT)
     .png()
     .toBuffer();
@@ -155,8 +176,9 @@ export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
     <rect y="0" width="${WIDTH}" height="6" fill="url(#bar)"/>
 
     <!-- top4 branding -->
-    <text x="${WIDTH / 2 - 20}" y="280" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="white" letter-spacing="-3">top</text>
-    <text x="${WIDTH / 2 - 15}" y="280" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="${accentColor}" letter-spacing="-3">4</text>
+    <defs><linearGradient id="logo4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f59e0b"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#2dd4bf"/></linearGradient></defs>
+    <text x="${WIDTH / 2 - 10}" y="280" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="white" letter-spacing="-2">top</text>
+    <text x="${WIDTH / 2 - 6}" y="280" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="url(#logo4)" letter-spacing="-2">4</text>
 
     <!-- User name -->
     <text x="${WIDTH / 2}" y="700" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="44" font-weight="600" fill="rgba(255,255,255,0.7)">${esc(config.displayName)}&apos;s</text>
@@ -200,8 +222,9 @@ export async function renderCategoryTitleFrame(
     <rect y="0" width="${WIDTH}" height="6" fill="url(#bar)"/>
 
     <!-- top4 (small, top left) -->
-    <text x="60" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="white" letter-spacing="-2">top</text>
-    <text x="164" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="${cat.color}" letter-spacing="-2">4</text>
+    <defs><linearGradient id="logo4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f59e0b"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#2dd4bf"/></linearGradient></defs>
+    <text x="60" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="white" letter-spacing="-1">top</text>
+    <text x="148" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="url(#logo4)" letter-spacing="-1">4</text>
 
     <!-- Category icon: colored SVG icon in circle -->
     <circle cx="${WIDTH / 2}" cy="660" r="120" fill="${cat.color}" fill-opacity="0.15"/>
@@ -255,19 +278,28 @@ export async function renderItemFrame(
     <rect y="0" width="${WIDTH}" height="6" fill="url(#bar)"/>
 
     <!-- top4 (top left) -->
-    <text x="60" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="white" letter-spacing="-2">top</text>
-    <text x="164" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="${cat.color}" letter-spacing="-2">4</text>
+    <defs><linearGradient id="logo4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f59e0b"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#2dd4bf"/></linearGradient></defs>
+    <text x="60" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="white" letter-spacing="-1">top</text>
+    <text x="148" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="url(#logo4)" letter-spacing="-1">4</text>
 
     <!-- Category (top right) -->
-    <text x="${WIDTH - 60}" y="100" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="600" fill="${cat.color}">${cat.emoji} ${esc(cat.label)}</text>
+    <text x="${WIDTH - 60}" y="100" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="600" fill="${cat.color}">${cat.emoji}  ${esc(cat.label)}</text>
 
     <!-- Big rank number -->
     <text x="${WIDTH / 2}" y="${isNumber1 ? '880' : '800'}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${isNumber1 ? '200' : '180'}" font-weight="900" fill="${isNumber1 ? cat.color : 'rgba(255,255,255,0.08)'}" letter-spacing="-5">#${rank}</text>
 
     <!-- Title -->
-    <text x="${WIDTH / 2}" y="${isNumber1 ? '1050' : '1020'}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${isNumber1 ? '72' : '64'}" font-weight="800" fill="white" letter-spacing="-1">${esc(item.title.length > 18 ? item.title.slice(0, 16) + '…' : item.title)}</text>
+    ${(() => {
+      const t = esc(item.title.length > 52 ? item.title.slice(0, 50) + '…' : item.title);
+      const baseFontSize = isNumber1 ? 72 : 64;
+      // Scale down font for longer titles
+      const fontSize = item.title.length > 40 ? Math.floor(baseFontSize * 0.6) :
+                        item.title.length > 30 ? Math.floor(baseFontSize * 0.7) :
+                        item.title.length > 22 ? Math.floor(baseFontSize * 0.85) : baseFontSize;
+      return `<text x="${WIDTH / 2}" y="${isNumber1 ? '1050' : '1020'}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${fontSize}" font-weight="800" fill="white" letter-spacing="-1">${t}</text>`;
+    })()}
 
-    ${item.subtitle ? `<text x="${WIDTH / 2}" y="${isNumber1 ? '1130' : '1090'}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="36" font-weight="400" fill="rgba(255,255,255,0.5)">${esc(item.subtitle.length > 30 ? item.subtitle.slice(0, 28) + '…' : item.subtitle)}</text>` : ''}
+    ${item.subtitle ? `<text x="${WIDTH / 2}" y="${isNumber1 ? '1130' : '1090'}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="36" font-weight="400" fill="rgba(255,255,255,0.5)">${esc(item.subtitle.length > 40 ? item.subtitle.slice(0, 38) + '…' : item.subtitle)}</text>` : ''}
 
     <!-- User name -->
     <text x="${WIDTH / 2}" y="${HEIGHT - 180}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="500" fill="rgba(255,255,255,0.4)">${esc(config.displayName)}</text>
@@ -286,25 +318,28 @@ export async function renderItemFrame(
       const imgLeft = Math.floor((WIDTH - imgSize) / 2);
       const borderRadius = isArtist ? imgSize / 2 : 24;
 
-      const roundedMask = Buffer.from(
-        `<svg width="${imgSize}" height="${imgSize}"><rect width="${imgSize}" height="${imgSize}" rx="${borderRadius}" ry="${borderRadius}" fill="white"/></svg>`
+      // Pre-render mask SVG to exact pixel size (librsvg DPI can inflate raw SVGs)
+      const roundedMaskPng = await renderSvgToPng(
+        `<svg width="${imgSize}" height="${imgSize}"><rect width="${imgSize}" height="${imgSize}" rx="${borderRadius}" ry="${borderRadius}" fill="white"/></svg>`,
+        imgSize, imgSize
       );
 
       const roundedImg = await sharp(imagePath)
         .resize(imgSize, imgSize, { fit: 'cover' })
-        .composite([{ input: roundedMask, blend: 'dest-in' }])
+        .composite([{ input: roundedMaskPng, blend: 'dest-in' }])
         .png()
         .toBuffer();
 
       const borderSize = imgSize + 8;
-      const borderSvg = Buffer.from(
+      const borderPng = await renderSvgToPng(
         `<svg width="${borderSize}" height="${borderSize}">
           <rect x="0" y="0" width="${borderSize}" height="${borderSize}" rx="${borderRadius + 4}" ry="${borderRadius + 4}" fill="none" stroke="${isNumber1 ? cat.color : 'rgba(255,255,255,0.15)'}" stroke-width="3"/>
-        </svg>`
+        </svg>`,
+        borderSize, borderSize
       );
 
       composites.push(
-        { input: borderSvg, top: imgTop - 4, left: imgLeft - 4 },
+        { input: borderPng, top: imgTop - 4, left: imgLeft - 4 },
         { input: roundedImg, top: imgTop, left: imgLeft }
       );
     } catch {
@@ -343,8 +378,9 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
     <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glow)"/>
 
     <!-- top4 branding -->
-    <text x="${WIDTH / 2 - 20}" y="280" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="white" letter-spacing="-3">top</text>
-    <text x="${WIDTH / 2 - 15}" y="280" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="${accentColor}" letter-spacing="-3">4</text>
+    <defs><linearGradient id="logo4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f59e0b"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#2dd4bf"/></linearGradient></defs>
+    <text x="${WIDTH / 2 - 10}" y="280" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="white" letter-spacing="-2">top</text>
+    <text x="${WIDTH / 2 - 6}" y="280" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="url(#logo4)" letter-spacing="-2">4</text>
 
     <!-- User name -->
     <text x="${WIDTH / 2}" y="460" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="38" font-weight="600" fill="rgba(255,255,255,0.6)">${esc(config.displayName)}&apos;s #1 picks</text>
@@ -363,6 +399,9 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
 
     <!-- URL -->
     <text x="${WIDTH / 2}" y="${HEIGHT - 100}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="26" font-weight="400" fill="rgba(255,255,255,0.15)">Pick your top 4. See what everyone else loves.</text>
+
+    <!-- Apple Music attribution -->
+    <text x="${WIDTH / 2}" y="${HEIGHT - 50}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="400" fill="rgba(255,255,255,0.1)">Audio previews courtesy of Apple Music</text>
   </svg>`;
 
   return svgToFrame(svg);

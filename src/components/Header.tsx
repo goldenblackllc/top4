@@ -246,6 +246,15 @@ export default function Header() {
                     }}
                   >
                     <Link
+                      href={`/u/${user.uid}`}
+                      onClick={() => setMenuOpen(false)}
+                      style={{ display: 'block', padding: '8px 14px', borderRadius: 8, fontSize: 14, color: 'var(--color-text-muted)', textDecoration: 'none', transition: 'all 0.15s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-bg-input)'; e.currentTarget.style.color = 'var(--color-text)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-muted)'; }}
+                    >
+                      {t('header.viewProfile')}
+                    </Link>
+                    <Link
                       href="/profile"
                       onClick={() => setMenuOpen(false)}
                       style={{ display: 'block', padding: '8px 14px', borderRadius: 8, fontSize: 14, color: 'var(--color-text-muted)', textDecoration: 'none', transition: 'all 0.15s' }}

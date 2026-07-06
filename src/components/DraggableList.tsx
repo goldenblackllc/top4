@@ -138,19 +138,40 @@ export default function DraggableList({ category, items, onChange }: DraggableLi
   }
 
   function handleSelect(rank: number, result: SearchResult) {
-    onChange(
-      items.map((item) =>
-        item.rank === rank
-          ? {
-              rank,
-              title: result.title,
-              ...(result.subtitle != null && { subtitle: result.subtitle }),
-              ...(result.image_url != null && { image_url: result.image_url }),
-              ...(result.id != null && { external_id: result.id }),
-            }
-          : item
-      )
+    const updatedItems = items.map((item) =>
+      item.rank === rank
+        ? {
+            rank,
+            title: result.title,
+            ...(result.subtitle != null && { subtitle: result.subtitle }),
+            ...(result.image_url != null && { image_url: result.image_url }),
+            ...(result.id != null && { external_id: result.id }),
+          }
+        : item
     );
+    onChange(updatedItems);
+
+    // Fire-and-forget: resolve audio preview URL in background
+    if (result.title) {
+      const params = new URLSearchParams({ title: result.title, category });
+      if (result.subtitle) params.set('subtitle', result.subtitle);
+      fetch(`/api/audio-preview?${params}`)
+        .then((res) => res.json())
+        .then((data: { preview_url?: string | null }) => {
+          if (data.preview_url) {
+            onChange(
+              updatedItems.map((item) =>
+                item.rank === rank
+                  ? { ...item, preview_url: data.preview_url! }
+                  : item
+              )
+            );
+          }
+        })
+        .catch(() => {
+          // Silent failure — video will just be silent for this item
+        });
+    }
   }
 
   function handleClear(rank: number) {

@@ -6,6 +6,7 @@ export interface Top4Item {
   subtitle?: string; // auto-filled: director, genre, author
   image_url?: string; // poster, artist photo, book cover
   external_id?: string; // tmdb id, itunes id, open library key
+  preview_url?: string; // iTunes audio preview URL (M4A) for video sound
 }
 
 export interface UserProfile {

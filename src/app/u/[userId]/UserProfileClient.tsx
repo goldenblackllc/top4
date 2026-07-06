@@ -81,6 +81,8 @@ export default function UserProfileClient({ userId }: { userId: string }) {
                 objectFit: 'cover',
                 marginBottom: 16,
                 border: '2px solid var(--color-border)',
+                display: 'block',
+                margin: '0 auto 16px',
               }}
             />
           ) : (

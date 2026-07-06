@@ -94,6 +94,10 @@ export const translations = {
     en: 'My Top 4s',
     es: 'Mis Top 4',
   },
+  'header.viewProfile': {
+    en: 'View My Profile',
+    es: 'Ver mi perfil',
+  },
   'header.likedLists': {
     en: '♥ Liked Lists',
     es: '♥ Listas favoritas',
