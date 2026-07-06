@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase/client';
 import { getProfile, getEntries } from '@/lib/firebase/firestore';
 import { getCategoryConfig, type Top4Entry, type UserProfile } from '@/lib/types';
 import { useLocale } from '@/lib/i18n';
@@ -17,6 +19,15 @@ export default function UserProfileClient({ userId }: { userId: string }) {
   const [profile, setProfile] = useState<UserProfile | null | 'not-found'>('not-found');
   const [entries, setEntries] = useState<Top4Entry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
+
+  // Check if the current viewer owns this profile
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setIsOwner(u?.uid === userId);
+    });
+    return unsub;
+  }, [userId]);
 
   useEffect(() => {
     async function load() {
@@ -122,10 +133,12 @@ export default function UserProfileClient({ userId }: { userId: string }) {
               title={`${profile.display_name}'s Top 4 Lists`}
               text={`Check out ${profile.display_name}'s favorite movies, shows, artists, and books on Top4!`}
             />
-            <CreateVideoButton
-              userId={userId}
-              displayName={profile.display_name}
-            />
+            {isOwner && (
+              <CreateVideoButton
+                userId={userId}
+                displayName={profile.display_name}
+              />
+            )}
           </div>
         </div>
 
