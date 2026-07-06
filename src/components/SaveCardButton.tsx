@@ -27,25 +27,21 @@ export default function SaveCardButton({ entryId, filename, compact, style }: Sa
       if (!res.ok) throw new Error('Failed to fetch image');
 
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
 
-      // Try native share with the image file on mobile (iOS/Android)
+      // On mobile, use navigator.share with just the file — the share sheet
+      // surfaces "Save to Photos" as a top option, matching Instagram/TikTok UX
       if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
         const file = new File([blob], `${filename || 'top4-card'}.png`, { type: 'image/png' });
-        const shareData = { files: [file] };
-
-        if (navigator.canShare(shareData)) {
+        if (navigator.canShare({ files: [file] })) {
           try {
-            await navigator.share(shareData);
-            URL.revokeObjectURL(url);
+            await navigator.share({ files: [file] });
             setSaving(false);
             setSaved(true);
             setTimeout(() => setSaved(false), 2000);
             return;
           } catch (err) {
-            // User cancelled — fall through to download
             if (err instanceof Error && err.name === 'AbortError') {
-              URL.revokeObjectURL(url);
+              // User cancelled
               setSaving(false);
               return;
             }
@@ -53,7 +49,8 @@ export default function SaveCardButton({ entryId, filename, compact, style }: Sa
         }
       }
 
-      // Fallback: trigger a file download
+      // Desktop fallback: trigger a file download
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `${filename || 'top4-card'}.png`;
@@ -101,8 +98,8 @@ export default function SaveCardButton({ entryId, filename, compact, style }: Sa
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={buttonStyle}
-      aria-label={saved ? 'Saved' : 'Save card image'}
-      title={saving ? 'Saving...' : saved ? 'Saved!' : 'Save card image for Instagram, Snapchat, etc.'}
+      aria-label={saved ? 'Saved' : 'Save to Photos'}
+      title={saving ? 'Saving...' : saved ? 'Saved!' : 'Save to Photos for Instagram, Snapchat, etc.'}
     >
       {saved ? (
         /* Checkmark icon */
@@ -136,7 +133,7 @@ export default function SaveCardButton({ entryId, filename, compact, style }: Sa
         </svg>
       )}
       {!compact && (
-        <span>{saving ? 'Saving...' : saved ? 'Saved!' : 'Save Card'}</span>
+        <span>{saving ? 'Saving...' : saved ? 'Saved!' : 'Save to Photos'}</span>
       )}
     </button>
   );

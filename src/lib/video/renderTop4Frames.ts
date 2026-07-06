@@ -1,4 +1,7 @@
+import satori from 'satori';
 import sharp from 'sharp';
+import { readFileSync, accessSync } from 'fs';
+import { join } from 'path';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -26,7 +29,7 @@ export interface VideoConfig {
   categories: CategoryData[];
 }
 
-// Design + render size (SVGs render at full resolution)
+// Design + render size (Satori renders at full resolution)
 const WIDTH = 1080;
 const HEIGHT = 1920;
 
@@ -34,11 +37,56 @@ const HEIGHT = 1920;
 const OUT_WIDTH = 720;
 const OUT_HEIGHT = 1280;
 
+// ── Font Loading ─────────────────────────────────────────────
+// Satori reads font buffers directly — no system fonts/fontconfig needed.
+// This is why it works on Vercel Lambda where librsvg can't find fonts.
+
+type FontWeight = 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
+type FontEntry = { name: string; data: Buffer; weight: FontWeight; style: 'normal' };
+let fontsCache: FontEntry[] | null = null;
+
+function getFonts(): FontEntry[] {
+  if (fontsCache) return fontsCache;
+
+  let dir: string;
+  try {
+    dir = join(process.cwd(), 'public', 'fonts');
+    accessSync(join(dir, 'Inter-Regular.ttf'));
+  } catch {
+    // Fallback for Vercel bundled layout where process.cwd() differs
+    dir = join(__dirname, '..', '..', '..', '..', 'public', 'fonts');
+  }
+
+  const load = (file: string, weight: FontWeight): FontEntry => ({
+    name: 'Inter',
+    data: readFileSync(join(dir, file)),
+    weight,
+    style: 'normal' as const,
+  });
+
+  fontsCache = [
+    load('Inter-Regular.ttf', 400),
+    load('Inter-Medium.ttf', 500),
+    load('Inter-SemiBold.ttf', 600),
+    load('Inter-Bold.ttf', 700),
+    load('Inter-ExtraBold.ttf', 800),
+    load('Inter-Black.ttf', 900),
+  ];
+
+  console.log('[Video] Loaded Inter font buffers from:', dir);
+  return fontsCache;
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 
-/** Render a raw SVG string to a PNG buffer at exact pixel dimensions.
- *  librsvg may honour system DPI, producing images larger than the
- *  declared width/height — this helper forces the output size. */
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** Render a raw SVG string to a PNG buffer (used only for image masks, no text) */
 async function renderSvgToPng(svg: string, w: number, h: number): Promise<Buffer> {
   return sharp(Buffer.from(svg), { density: 72 })
     .resize(w, h)
@@ -46,83 +94,158 @@ async function renderSvgToPng(svg: string, w: number, h: number): Promise<Buffer
     .toBuffer();
 }
 
-/** Render an SVG string to a PNG frame, with optional image composites */
-async function svgToFrame(svg: string, extraComposites?: sharp.OverlayOptions[]): Promise<Buffer> {
-  // Render the background SVG to exactly WIDTH×HEIGHT
-  const basePng = await renderSvgToPng(svg, WIDTH, HEIGHT);
+/** Render a Satori element tree → SVG (with text as paths) → PNG via sharp */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function renderFrame(element: any, extraComposites?: sharp.OverlayOptions[]): Promise<Buffer> {
+  const svg = await satori(element, {
+    width: WIDTH,
+    height: HEIGHT,
+    fonts: getFonts(),
+  });
 
-  // Composite images at full design resolution (1080×1920)
-  let fullRes: Buffer;
-  if (extraComposites && extraComposites.length > 0) {
-    fullRes = await sharp(basePng)
+  let basePng = await sharp(Buffer.from(svg))
+    .resize(WIDTH, HEIGHT)
+    .png()
+    .toBuffer();
+
+  // Composite images (e.g. item artwork) at full design resolution
+  if (extraComposites?.length) {
+    basePng = await sharp(basePng)
       .composite(extraComposites)
       .png()
       .toBuffer();
-  } else {
-    fullRes = basePng;
   }
 
-  // Then resize to output resolution in a separate pass
-  return sharp(fullRes)
+  // Then resize to output resolution
+  return sharp(basePng)
     .resize(OUT_WIDTH, OUT_HEIGHT)
     .png()
     .toBuffer();
 }
 
-function esc(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-// ── SVG Icons (sharp can't render color emoji, so we use vector icons) ──
+// ── Reusable Element Builders ────────────────────────────────
 
-/** Returns an SVG group with a category icon centered at (cx, cy) with given size and color */
-function categoryIcon(category: string, cx: number, cy: number, size: number, color: string): string {
+/** Accent gradient bar at top of frame */
+function accentBar(colors: string | string[]) {
+  const gradient = Array.isArray(colors)
+    ? `linear-gradient(to right, ${colors.join(', ')})`
+    : `linear-gradient(to right, ${colors}, ${hexToRgba(colors, 0.5)} 70%, transparent 100%)`;
+  return {
+    type: 'div',
+    props: {
+      style: {
+        position: 'absolute' as const, top: 0, left: 0,
+        width: '100%', height: 6,
+        backgroundImage: gradient,
+      },
+    },
+  };
+}
+
+/** "top4" logo — "top" in white + "4" with gradient fill */
+function logoElement(size: number = 72) {
+  return {
+    type: 'div',
+    props: {
+      style: { display: 'flex', alignItems: 'baseline' },
+      children: [
+        {
+          type: 'span',
+          props: {
+            style: { fontSize: size, fontWeight: 800, color: 'white', letterSpacing: -2, fontFamily: 'Inter' },
+            children: 'top',
+          },
+        },
+        {
+          type: 'span',
+          props: {
+            style: {
+              fontSize: size, fontWeight: 800, letterSpacing: -2, fontFamily: 'Inter',
+              backgroundImage: 'linear-gradient(135deg, #f59e0b, #a78bfa, #2dd4bf)',
+              backgroundClip: 'text',
+              color: 'transparent',
+            },
+            children: '4',
+          },
+        },
+      ],
+    },
+  };
+}
+
+/** URL footer text */
+function urlFooter() {
+  return {
+    type: 'span',
+    props: {
+      style: { fontSize: 28, fontWeight: 400, color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter' },
+      children: 'www.top4.info',
+    },
+  };
+}
+
+/** Absolutely-positioned, horizontally centered wrapper */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function centered(top: number, child: any) {
+  return {
+    type: 'div',
+    props: {
+      style: {
+        position: 'absolute' as const, top, left: 0, width: '100%',
+        display: 'flex', justifyContent: 'center', alignItems: 'center',
+      },
+      children: child,
+    },
+  };
+}
+
+/** Category SVG icon as a Satori inline SVG element */
+function categoryIconElement(category: string, size: number, color: string) {
   const s = size;
-  const hs = s / 2;
-  // All icons drawn relative to center point (cx, cy)
-  switch (category) {
-    case 'artists':
-      // Music note icon
-      return `<g transform="translate(${cx - hs}, ${cy - hs})">
-        <circle cx="${s * 0.28}" cy="${s * 0.78}" r="${s * 0.15}" fill="${color}"/>
-        <circle cx="${s * 0.72}" cy="${s * 0.65}" r="${s * 0.15}" fill="${color}"/>
-        <rect x="${s * 0.40}" y="${s * 0.12}" width="${s * 0.04}" height="${s * 0.66}" fill="${color}"/>
-        <rect x="${s * 0.84}" y="${s * 0.05}" width="${s * 0.04}" height="${s * 0.60}" fill="${color}"/>
-        <rect x="${s * 0.40}" y="${s * 0.08}" width="${s * 0.48}" height="${s * 0.08}" rx="${s * 0.03}" fill="${color}"/>
-      </g>`;
-    case 'movies':
-      // Film clapperboard icon
-      return `<g transform="translate(${cx - hs}, ${cy - hs})">
-        <rect x="${s * 0.1}" y="${s * 0.35}" width="${s * 0.8}" height="${s * 0.55}" rx="${s * 0.06}" fill="${color}" fill-opacity="0.9"/>
-        <rect x="${s * 0.1}" y="${s * 0.18}" width="${s * 0.8}" height="${s * 0.22}" rx="${s * 0.04}" fill="${color}"/>
-        <line x1="${s * 0.28}" y1="${s * 0.18}" x2="${s * 0.38}" y2="${s * 0.40}" stroke="#08080d" stroke-width="${s * 0.035}"/>
-        <line x1="${s * 0.48}" y1="${s * 0.18}" x2="${s * 0.58}" y2="${s * 0.40}" stroke="#08080d" stroke-width="${s * 0.035}"/>
-        <line x1="${s * 0.68}" y1="${s * 0.18}" x2="${s * 0.78}" y2="${s * 0.40}" stroke="#08080d" stroke-width="${s * 0.035}"/>
-      </g>`;
-    case 'tv':
-      // TV screen icon
-      return `<g transform="translate(${cx - hs}, ${cy - hs})">
-        <rect x="${s * 0.1}" y="${s * 0.15}" width="${s * 0.8}" height="${s * 0.58}" rx="${s * 0.08}" fill="${color}"/>
-        <rect x="${s * 0.18}" y="${s * 0.23}" width="${s * 0.64}" height="${s * 0.42}" rx="${s * 0.03}" fill="#08080d" fill-opacity="0.5"/>
-        <rect x="${s * 0.35}" y="${s * 0.78}" width="${s * 0.3}" height="${s * 0.06}" rx="${s * 0.02}" fill="${color}"/>
-        <rect x="${s * 0.25}" y="${s * 0.84}" width="${s * 0.5}" height="${s * 0.05}" rx="${s * 0.02}" fill="${color}" fill-opacity="0.6"/>
-      </g>`;
-    case 'books':
-      // Open book icon
-      return `<g transform="translate(${cx - hs}, ${cy - hs})">
-        <path d="M${s * 0.5} ${s * 0.22} Q${s * 0.3} ${s * 0.18} ${s * 0.1} ${s * 0.25} L${s * 0.1} ${s * 0.78} Q${s * 0.3} ${s * 0.72} ${s * 0.5} ${s * 0.75} Z" fill="${color}" fill-opacity="0.85"/>
-        <path d="M${s * 0.5} ${s * 0.22} Q${s * 0.7} ${s * 0.18} ${s * 0.9} ${s * 0.25} L${s * 0.9} ${s * 0.78} Q${s * 0.7} ${s * 0.72} ${s * 0.5} ${s * 0.75} Z" fill="${color}"/>
-        <line x1="${s * 0.5}" y1="${s * 0.22}" x2="${s * 0.5}" y2="${s * 0.75}" stroke="#08080d" stroke-width="${s * 0.02}" stroke-opacity="0.3"/>
-      </g>`;
-    default:
-      // Fallback: colored circle with "?"
-      return `<circle cx="${cx}" cy="${cy}" r="${hs * 0.8}" fill="${color}" fill-opacity="0.3"/>
-        <text x="${cx}" y="${cy + hs * 0.3}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${s * 0.5}" font-weight="800" fill="${color}">?</text>`;
-  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const children: any[] = (() => {
+    switch (category) {
+      case 'artists':
+        return [
+          { type: 'circle', props: { cx: s * 0.28, cy: s * 0.78, r: s * 0.15, fill: color } },
+          { type: 'circle', props: { cx: s * 0.72, cy: s * 0.65, r: s * 0.15, fill: color } },
+          { type: 'rect', props: { x: s * 0.40, y: s * 0.12, width: s * 0.04, height: s * 0.66, fill: color } },
+          { type: 'rect', props: { x: s * 0.84, y: s * 0.05, width: s * 0.04, height: s * 0.60, fill: color } },
+          { type: 'rect', props: { x: s * 0.40, y: s * 0.08, width: s * 0.48, height: s * 0.08, rx: s * 0.03, fill: color } },
+        ];
+      case 'movies':
+        return [
+          { type: 'rect', props: { x: s * 0.1, y: s * 0.35, width: s * 0.8, height: s * 0.55, rx: s * 0.06, fill: color, fillOpacity: 0.9 } },
+          { type: 'rect', props: { x: s * 0.1, y: s * 0.18, width: s * 0.8, height: s * 0.22, rx: s * 0.04, fill: color } },
+          { type: 'line', props: { x1: s * 0.28, y1: s * 0.18, x2: s * 0.38, y2: s * 0.40, stroke: '#08080d', strokeWidth: s * 0.035 } },
+          { type: 'line', props: { x1: s * 0.48, y1: s * 0.18, x2: s * 0.58, y2: s * 0.40, stroke: '#08080d', strokeWidth: s * 0.035 } },
+          { type: 'line', props: { x1: s * 0.68, y1: s * 0.18, x2: s * 0.78, y2: s * 0.40, stroke: '#08080d', strokeWidth: s * 0.035 } },
+        ];
+      case 'tv':
+        return [
+          { type: 'rect', props: { x: s * 0.1, y: s * 0.15, width: s * 0.8, height: s * 0.58, rx: s * 0.08, fill: color } },
+          { type: 'rect', props: { x: s * 0.18, y: s * 0.23, width: s * 0.64, height: s * 0.42, rx: s * 0.03, fill: '#08080d', fillOpacity: 0.5 } },
+          { type: 'rect', props: { x: s * 0.35, y: s * 0.78, width: s * 0.3, height: s * 0.06, rx: s * 0.02, fill: color } },
+          { type: 'rect', props: { x: s * 0.25, y: s * 0.84, width: s * 0.5, height: s * 0.05, rx: s * 0.02, fill: color, fillOpacity: 0.6 } },
+        ];
+      case 'books':
+        return [
+          { type: 'path', props: { d: `M${s * 0.5} ${s * 0.22} Q${s * 0.3} ${s * 0.18} ${s * 0.1} ${s * 0.25} L${s * 0.1} ${s * 0.78} Q${s * 0.3} ${s * 0.72} ${s * 0.5} ${s * 0.75} Z`, fill: color, fillOpacity: 0.85 } },
+          { type: 'path', props: { d: `M${s * 0.5} ${s * 0.22} Q${s * 0.7} ${s * 0.18} ${s * 0.9} ${s * 0.25} L${s * 0.9} ${s * 0.78} Q${s * 0.7} ${s * 0.72} ${s * 0.5} ${s * 0.75} Z`, fill: color } },
+          { type: 'line', props: { x1: s * 0.5, y1: s * 0.22, x2: s * 0.5, y2: s * 0.75, stroke: '#08080d', strokeWidth: s * 0.02, strokeOpacity: 0.3 } },
+        ];
+      default:
+        return [
+          { type: 'circle', props: { cx: s / 2, cy: s / 2, r: s * 0.4, fill: color, fillOpacity: 0.3 } },
+        ];
+    }
+  })();
+
+  return {
+    type: 'svg',
+    props: { viewBox: `0 0 ${s} ${s}`, width: s, height: s, children },
+  };
 }
 
 // ── Frame Renderers ──────────────────────────────────────────
@@ -131,69 +254,95 @@ function categoryIcon(category: string, cx: number, cy: number, size: number, co
  * Frame 1: Hook — "David's Top 4"
  */
 export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
-  const accentColor = config.categories[0]?.color ?? '#a78bfa';
+  const cats = config.categories;
+  const numCats = cats.length;
 
-  // Render categories in a 2x2 grid for even spacing
-  const positions = [
-    { x: WIDTH / 2 - 180, y: 940 },  // top-left
-    { x: WIDTH / 2 + 180, y: 940 },  // top-right
-    { x: WIDTH / 2 - 180, y: 1020 }, // bottom-left
-    { x: WIDTH / 2 + 180, y: 1020 }, // bottom-right
-  ];
-  const categoryElements = config.categories.map((c, i) => {
-    const pos = positions[i] || positions[0];
-    // Icon centered at pos, label to the right
-    return `${categoryIcon(c.category, pos.x - 50, pos.y - 12, 32, c.color)}
-    <text x="${pos.x - 24}" y="${pos.y}" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="600" fill="${c.color}">${esc(c.label)}</text>`;
-  }).join('\n    ');
-
-  // Multiple colored glows
-  const numCats = config.categories.length;
-  const glowDefs = config.categories.map((c, i) => {
+  // Radial gradient glows for each category colour
+  const glowElements = cats.map((c, i) => {
     const cx = 25 + (i * 50 / Math.max(numCats - 1, 1));
-    return `<radialGradient id="glow${i}" cx="${cx}%" cy="42%" r="35%">
-      <stop offset="0%" stop-color="${c.color}" stop-opacity="0.1"/>
-      <stop offset="100%" stop-color="${c.color}" stop-opacity="0"/>
-    </radialGradient>`;
-  }).join('\n      ');
+    return {
+      type: 'div',
+      props: {
+        style: {
+          position: 'absolute' as const, top: 0, left: 0, width: '100%', height: '100%',
+          backgroundImage: `radial-gradient(circle at ${cx}% 42%, ${hexToRgba(c.color, 0.1)} 0%, transparent 70%)`,
+        },
+      },
+    };
+  });
 
-  const glowRects = config.categories.map((_, i) =>
-    `<rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glow${i})"/>`
-  ).join('\n    ');
+  // 2×2 category grid
+  const categoryRows = [];
+  for (let i = 0; i < cats.length; i += 2) {
+    const row = cats.slice(i, i + 2).map(c => ({
+      type: 'div',
+      props: {
+        style: { display: 'flex', alignItems: 'center', gap: 8, width: 220, fontFamily: 'Inter' },
+        children: [
+          categoryIconElement(c.category, 32, c.color),
+          { type: 'span', props: { style: { fontSize: 32, fontWeight: 600, color: c.color }, children: c.label } },
+        ],
+      },
+    }));
+    categoryRows.push({
+      type: 'div',
+      props: {
+        style: { display: 'flex', justifyContent: 'center', gap: 40 },
+        children: row,
+      },
+    });
+  }
 
-  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="#08080d"/>
-    
-    <defs>
-      ${glowDefs}
-    </defs>
-    ${glowRects}
+  const element = {
+    type: 'div',
+    props: {
+      style: {
+        width: '100%', height: '100%',
+        display: 'flex', flexDirection: 'column' as const, alignItems: 'center',
+        backgroundColor: '#08080d', fontFamily: 'Inter', position: 'relative' as const,
+      },
+      children: [
+        // Background glows + accent bar
+        ...glowElements,
+        accentBar(cats.map(c => c.color)),
 
-    <!-- Accent bar with multi-color gradient -->
-    <defs><linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
-      ${config.categories.map((c, i) => `<stop offset="${(i / Math.max(numCats - 1, 1) * 100).toFixed(0)}%" stop-color="${c.color}" stop-opacity="0.8"/>`).join('\n      ')}
-    </linearGradient></defs>
-    <rect y="0" width="${WIDTH}" height="6" fill="url(#bar)"/>
+        // Top spacer
+        { type: 'div', props: { style: { height: 210 } } },
 
-    <!-- top4 branding -->
-    <defs><linearGradient id="logo4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f59e0b"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#2dd4bf"/></linearGradient></defs>
-    <text x="${WIDTH / 2 - 10}" y="280" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="white" letter-spacing="-2">top</text>
-    <text x="${WIDTH / 2 - 6}" y="280" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="url(#logo4)" letter-spacing="-2">4</text>
+        // Logo
+        logoElement(72),
 
-    <!-- User name -->
-    <text x="${WIDTH / 2}" y="700" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="44" font-weight="600" fill="rgba(255,255,255,0.7)">${esc(config.displayName)}&apos;s</text>
+        // Push content toward center
+        { type: 'div', props: { style: { flex: 1 } } },
 
-    <!-- "Top 4" -->
-    <text x="${WIDTH / 2}" y="840" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="100" font-weight="800" fill="white" letter-spacing="-2">Top 4</text>
+        // User name
+        { type: 'span', props: { style: { fontSize: 44, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }, children: `${config.displayName}'s` } },
+        { type: 'div', props: { style: { height: 60 } } },
 
-    <!-- Categories with individual colors -->
-    ${categoryElements}
+        // "Top 4"
+        { type: 'span', props: { style: { fontSize: 100, fontWeight: 800, color: 'white', letterSpacing: -2 }, children: 'Top 4' } },
+        { type: 'div', props: { style: { height: 50 } } },
 
-    <!-- URL -->
-    <text x="${WIDTH / 2}" y="${HEIGHT - 120}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="400" fill="rgba(255,255,255,0.2)">www.top4.info</text>
-  </svg>`;
+        // Category grid
+        {
+          type: 'div',
+          props: {
+            style: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 16 },
+            children: categoryRows,
+          },
+        },
 
-  return svgToFrame(svg);
+        // Push URL to bottom
+        { type: 'div', props: { style: { flex: 1 } } },
+
+        // URL
+        urlFooter(),
+        { type: 'div', props: { style: { height: 100 } } },
+      ],
+    },
+  };
+
+  return renderFrame(element);
 }
 
 /**
@@ -203,45 +352,77 @@ export async function renderCategoryTitleFrame(
   config: VideoConfig,
   cat: CategoryData
 ): Promise<Buffer> {
+  const element = {
+    type: 'div',
+    props: {
+      style: {
+        width: '100%', height: '100%',
+        display: 'flex', flexDirection: 'column' as const, alignItems: 'center',
+        backgroundColor: '#08080d', fontFamily: 'Inter', position: 'relative' as const,
+      },
+      children: [
+        // Radial glow
+        {
+          type: 'div',
+          props: {
+            style: {
+              position: 'absolute' as const, top: 0, left: 0, width: '100%', height: '100%',
+              backgroundImage: `radial-gradient(circle at 50% 45%, ${hexToRgba(cat.color, 0.18)} 0%, transparent 70%)`,
+            },
+          },
+        },
 
-  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="#08080d"/>
+        // Accent bar
+        accentBar(cat.color),
 
-    <defs><radialGradient id="glow" cx="50%" cy="45%" r="45%">
-      <stop offset="0%" stop-color="${cat.color}" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="${cat.color}" stop-opacity="0"/>
-    </radialGradient></defs>
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glow)"/>
+        // Logo (top-left, absolutely positioned)
+        {
+          type: 'div',
+          props: {
+            style: { position: 'absolute' as const, top: 60, left: 60 },
+            children: logoElement(42),
+          },
+        },
 
-    <!-- Accent bar -->
-    <defs><linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="${cat.color}" stop-opacity="1"/>
-      <stop offset="70%" stop-color="${cat.color}" stop-opacity="0.5"/>
-      <stop offset="100%" stop-color="${cat.color}" stop-opacity="0"/>
-    </linearGradient></defs>
-    <rect y="0" width="${WIDTH}" height="6" fill="url(#bar)"/>
+        // Push icon toward center
+        { type: 'div', props: { style: { flex: 1, minHeight: 400 } } },
 
-    <!-- top4 (small, top left) -->
-    <defs><linearGradient id="logo4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f59e0b"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#2dd4bf"/></linearGradient></defs>
-    <text x="60" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="white" letter-spacing="-1">top</text>
-    <text x="148" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="url(#logo4)" letter-spacing="-1">4</text>
+        // Category icon in circle
+        {
+          type: 'div',
+          props: {
+            style: {
+              width: 240, height: 240,
+              borderRadius: 120,
+              backgroundColor: hexToRgba(cat.color, 0.15),
+              border: `3px solid ${hexToRgba(cat.color, 0.4)}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            },
+            children: categoryIconElement(cat.category, 160, cat.color),
+          },
+        },
 
-    <!-- Category icon: colored SVG icon in circle -->
-    <circle cx="${WIDTH / 2}" cy="660" r="120" fill="${cat.color}" fill-opacity="0.15"/>
-    <circle cx="${WIDTH / 2}" cy="660" r="120" fill="none" stroke="${cat.color}" stroke-opacity="0.4" stroke-width="3"/>
-    ${categoryIcon(cat.category, WIDTH / 2, 660, 160, cat.color)}
+        { type: 'div', props: { style: { height: 80 } } },
 
-    <!-- Category label -->
-    <text x="${WIDTH / 2}" y="920" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="80" font-weight="800" fill="${cat.color}" letter-spacing="-1">${esc(cat.label)}</text>
+        // Category label
+        { type: 'span', props: { style: { fontSize: 80, fontWeight: 800, color: cat.color, letterSpacing: -1 }, children: cat.label } },
 
-    <!-- User name -->
-    <text x="${WIDTH / 2}" y="1020" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="500" fill="rgba(255,255,255,0.4)">${esc(config.displayName)}</text>
+        { type: 'div', props: { style: { height: 40 } } },
 
-    <!-- URL -->
-    <text x="${WIDTH / 2}" y="${HEIGHT - 120}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="400" fill="rgba(255,255,255,0.2)">www.top4.info</text>
-  </svg>`;
+        // User name
+        { type: 'span', props: { style: { fontSize: 32, fontWeight: 500, color: 'rgba(255,255,255,0.4)' }, children: config.displayName } },
 
-  return svgToFrame(svg);
+        // Push URL to bottom
+        { type: 'div', props: { style: { flex: 1 } } },
+
+        // URL
+        urlFooter(),
+        { type: 'div', props: { style: { height: 100 } } },
+      ],
+    },
+  };
+
+  return renderFrame(element);
 }
 
 /**
@@ -260,57 +441,120 @@ export async function renderItemFrame(
   const imagePath = cat.imagePaths[itemIndex];
   const isArtist = cat.category === 'artists';
 
-  const bgSvg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="#08080d"/>
-    
-    ${isNumber1 ? `<defs><radialGradient id="glow1" cx="50%" cy="50%" r="45%">
-      <stop offset="0%" stop-color="${cat.color}" stop-opacity="0.2"/>
-      <stop offset="100%" stop-color="${cat.color}" stop-opacity="0"/>
-    </radialGradient></defs>
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glow1)"/>` : ''}
-
-    <!-- Accent bar -->
-    <defs><linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="${cat.color}" stop-opacity="1"/>
-      <stop offset="70%" stop-color="${cat.color}" stop-opacity="0.5"/>
-      <stop offset="100%" stop-color="${cat.color}" stop-opacity="0"/>
-    </linearGradient></defs>
-    <rect y="0" width="${WIDTH}" height="6" fill="url(#bar)"/>
-
-    <!-- top4 (top left) -->
-    <defs><linearGradient id="logo4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f59e0b"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#2dd4bf"/></linearGradient></defs>
-    <text x="60" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="white" letter-spacing="-1">top</text>
-    <text x="148" y="100" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="800" fill="url(#logo4)" letter-spacing="-1">4</text>
-
-    <!-- Category (top right) -->
-    <text x="${WIDTH - 60}" y="100" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="600" fill="${cat.color}">${cat.emoji}  ${esc(cat.label)}</text>
-
-    <!-- Big rank number -->
-    <text x="${WIDTH / 2}" y="${isNumber1 ? '880' : '800'}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${isNumber1 ? '200' : '180'}" font-weight="900" fill="${isNumber1 ? cat.color : 'rgba(255,255,255,0.08)'}" letter-spacing="-5">#${rank}</text>
-
-    <!-- Title -->
-    ${(() => {
-      const t = esc(item.title.length > 52 ? item.title.slice(0, 50) + '…' : item.title);
-      const baseFontSize = isNumber1 ? 72 : 64;
-      // Scale down font for longer titles
-      const fontSize = item.title.length > 40 ? Math.floor(baseFontSize * 0.6) :
+  // Dynamic title font sizing (same logic as before)
+  const title = item.title.length > 52 ? item.title.slice(0, 50) + '\u2026' : item.title;
+  const baseFontSize = isNumber1 ? 72 : 64;
+  const titleFontSize = item.title.length > 40 ? Math.floor(baseFontSize * 0.6) :
                         item.title.length > 30 ? Math.floor(baseFontSize * 0.7) :
                         item.title.length > 22 ? Math.floor(baseFontSize * 0.85) : baseFontSize;
-      return `<text x="${WIDTH / 2}" y="${isNumber1 ? '1050' : '1020'}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="${fontSize}" font-weight="800" fill="white" letter-spacing="-1">${t}</text>`;
-    })()}
 
-    ${item.subtitle ? `<text x="${WIDTH / 2}" y="${isNumber1 ? '1130' : '1090'}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="36" font-weight="400" fill="rgba(255,255,255,0.5)">${esc(item.subtitle.length > 40 ? item.subtitle.slice(0, 38) + '…' : item.subtitle)}</text>` : ''}
+  const subtitle = item.subtitle
+    ? (item.subtitle.length > 40 ? item.subtitle.slice(0, 38) + '\u2026' : item.subtitle)
+    : null;
 
-    <!-- User name -->
-    <text x="${WIDTH / 2}" y="${HEIGHT - 180}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="500" fill="rgba(255,255,255,0.4)">${esc(config.displayName)}</text>
+  const element = {
+    type: 'div',
+    props: {
+      style: {
+        width: '100%', height: '100%',
+        display: 'flex', flexDirection: 'column' as const, alignItems: 'center',
+        backgroundColor: '#08080d', fontFamily: 'Inter', position: 'relative' as const,
+      },
+      children: [
+        // Radial glow for #1
+        ...(isNumber1 ? [{
+          type: 'div',
+          props: {
+            style: {
+              position: 'absolute' as const, top: 0, left: 0, width: '100%', height: '100%',
+              backgroundImage: `radial-gradient(circle at 50% 50%, ${hexToRgba(cat.color, 0.2)} 0%, transparent 70%)`,
+            },
+          },
+        }] : []),
 
-    <!-- URL -->
-    <text x="${WIDTH / 2}" y="${HEIGHT - 120}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="400" fill="rgba(255,255,255,0.2)">www.top4.info</text>
-  </svg>`;
+        // Accent bar
+        accentBar(cat.color),
 
+        // Logo (top-left)
+        { type: 'div', props: { style: { position: 'absolute' as const, top: 60, left: 60 }, children: logoElement(42) } },
+
+        // Category label (top-right)
+        {
+          type: 'div',
+          props: {
+            style: { position: 'absolute' as const, top: 70, right: 60 },
+            children: { type: 'span', props: { style: { fontSize: 30, fontWeight: 600, color: cat.color }, children: cat.label } },
+          },
+        },
+
+        // Big rank number (absolutely positioned background watermark)
+        centered(isNumber1 ? 620 : 560, {
+          type: 'span',
+          props: {
+            style: {
+              fontSize: isNumber1 ? 200 : 180,
+              fontWeight: 900,
+              color: isNumber1 ? cat.color : 'rgba(255,255,255,0.08)',
+              letterSpacing: -5,
+            },
+            children: `#${rank}`,
+          },
+        }),
+
+        // Spacer for image area (image composited by sharp later)
+        { type: 'div', props: { style: { height: isNumber1 ? 340 : 380 } } },
+        { type: 'div', props: { style: { height: (isNumber1 ? 320 : 260) + 60 } } }, // image height + gap
+
+        // Title
+        {
+          type: 'div',
+          props: {
+            style: { display: 'flex', justifyContent: 'center', width: '100%', padding: '0 60px' },
+            children: {
+              type: 'span',
+              props: {
+                style: {
+                  fontSize: titleFontSize, fontWeight: 800, color: 'white',
+                  letterSpacing: -1, textAlign: 'center' as const,
+                },
+                children: title,
+              },
+            },
+          },
+        },
+
+        // Subtitle
+        ...(subtitle ? [{
+          type: 'div',
+          props: {
+            style: { display: 'flex', justifyContent: 'center', width: '100%', marginTop: 16, padding: '0 60px' },
+            children: {
+              type: 'span',
+              props: {
+                style: { fontSize: 36, fontWeight: 400, color: 'rgba(255,255,255,0.5)', textAlign: 'center' as const },
+                children: subtitle,
+              },
+            },
+          },
+        }] : []),
+
+        // Push footer to bottom
+        { type: 'div', props: { style: { flex: 1 } } },
+
+        // User name
+        { type: 'span', props: { style: { fontSize: 28, fontWeight: 500, color: 'rgba(255,255,255,0.4)' }, children: config.displayName } },
+        { type: 'div', props: { style: { height: 40 } } },
+
+        // URL
+        urlFooter(),
+        { type: 'div', props: { style: { height: 100 } } },
+      ],
+    },
+  };
+
+  // ── Image composite (same approach as before) ──
   const composites: sharp.OverlayOptions[] = [];
 
-  // Add item image if available
   if (imagePath) {
     try {
       const imgSize = isNumber1 ? 320 : 260;
@@ -318,7 +562,7 @@ export async function renderItemFrame(
       const imgLeft = Math.floor((WIDTH - imgSize) / 2);
       const borderRadius = isArtist ? imgSize / 2 : 24;
 
-      // Pre-render mask SVG to exact pixel size (librsvg DPI can inflate raw SVGs)
+      // Pre-render mask SVG (simple shape, no text — works everywhere)
       const roundedMaskPng = await renderSvgToPng(
         `<svg width="${imgSize}" height="${imgSize}"><rect width="${imgSize}" height="${imgSize}" rx="${borderRadius}" ry="${borderRadius}" fill="white"/></svg>`,
         imgSize, imgSize
@@ -347,7 +591,7 @@ export async function renderItemFrame(
     }
   }
 
-  return svgToFrame(bgSvg, composites);
+  return renderFrame(element, composites);
 }
 
 /**
@@ -356,53 +600,98 @@ export async function renderItemFrame(
 export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
   const accentColor = config.categories[0]?.color ?? '#a78bfa';
 
-  // Build summary: show #1 pick from each category
-  // Use colored dot + label text (sharp can't render color emoji)
-  const rowX = 280; // fixed left edge for alignment
-  const summaryLines = config.categories.map((cat, i) => {
+  // Build #1 pick summary rows
+  const summaryRows = config.categories.map(cat => {
     const topPick = cat.items[0];
-    const y = 780 + i * 120;
-    const title = topPick ? esc(topPick.title.length > 20 ? topPick.title.slice(0, 18) + '\u2026' : topPick.title) : '\u2014';
-    // Colored SVG icon + title
-    return `${categoryIcon(cat.category, rowX, y - 14, 48, cat.color)}
-    <text x="${rowX + 42}" y="${y}" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="42" font-weight="600" fill="rgba(255,255,255,0.8)">${title}</text>`;
-  }).join('\n');
+    const pickTitle = topPick
+      ? (topPick.title.length > 20 ? topPick.title.slice(0, 18) + '\u2026' : topPick.title)
+      : '\u2014';
 
-  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="#08080d"/>
+    return {
+      type: 'div',
+      props: {
+        style: { display: 'flex', alignItems: 'center', gap: 16, fontFamily: 'Inter' },
+        children: [
+          categoryIconElement(cat.category, 48, cat.color),
+          { type: 'span', props: { style: { fontSize: 42, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }, children: pickTitle } },
+        ],
+      },
+    };
+  });
 
-    <defs><radialGradient id="glow" cx="50%" cy="40%" r="50%">
-      <stop offset="0%" stop-color="${accentColor}" stop-opacity="0.1"/>
-      <stop offset="100%" stop-color="${accentColor}" stop-opacity="0"/>
-    </radialGradient></defs>
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#glow)"/>
+  const element = {
+    type: 'div',
+    props: {
+      style: {
+        width: '100%', height: '100%',
+        display: 'flex', flexDirection: 'column' as const, alignItems: 'center',
+        backgroundColor: '#08080d', fontFamily: 'Inter', position: 'relative' as const,
+      },
+      children: [
+        // Radial glow
+        {
+          type: 'div',
+          props: {
+            style: {
+              position: 'absolute' as const, top: 0, left: 0, width: '100%', height: '100%',
+              backgroundImage: `radial-gradient(circle at 50% 40%, ${hexToRgba(accentColor, 0.1)} 0%, transparent 70%)`,
+            },
+          },
+        },
 
-    <!-- top4 branding -->
-    <defs><linearGradient id="logo4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f59e0b"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#2dd4bf"/></linearGradient></defs>
-    <text x="${WIDTH / 2 - 10}" y="280" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="white" letter-spacing="-2">top</text>
-    <text x="${WIDTH / 2 - 6}" y="280" text-anchor="start" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="url(#logo4)" letter-spacing="-2">4</text>
+        // Top spacer
+        { type: 'div', props: { style: { height: 210 } } },
 
-    <!-- User name -->
-    <text x="${WIDTH / 2}" y="460" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="38" font-weight="600" fill="rgba(255,255,255,0.6)">${esc(config.displayName)}&apos;s #1 picks</text>
+        // Logo
+        logoElement(72),
 
-    <!-- Divider -->
-    <line x1="340" y1="540" x2="${WIDTH - 340}" y2="540" stroke="${accentColor}" stroke-opacity="0.3" stroke-width="2"/>
+        { type: 'div', props: { style: { height: 120 } } },
 
-    <!-- #1 picks per category -->
-    ${summaryLines}
+        // "David's #1 picks"
+        { type: 'span', props: { style: { fontSize: 38, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }, children: `${config.displayName}'s #1 picks` } },
 
-    <!-- CTA -->
-    <text x="${WIDTH / 2}" y="${HEIGHT - 340}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="36" font-weight="600" fill="rgba(255,255,255,0.7)">Do you agree?</text>
+        { type: 'div', props: { style: { height: 60 } } },
 
-    <text x="${WIDTH / 2}" y="${HEIGHT - 240}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="40" font-weight="700" fill="white">Share yours at</text>
-    <text x="${WIDTH / 2}" y="${HEIGHT - 180}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="44" font-weight="700" fill="${accentColor}">www.top4.info</text>
+        // Divider
+        {
+          type: 'div',
+          props: {
+            style: { width: 400, height: 2, backgroundColor: hexToRgba(accentColor, 0.3) },
+          },
+        },
 
-    <!-- URL -->
-    <text x="${WIDTH / 2}" y="${HEIGHT - 100}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="26" font-weight="400" fill="rgba(255,255,255,0.15)">Pick your top 4. See what everyone else loves.</text>
+        { type: 'div', props: { style: { height: 60 } } },
 
-    <!-- Apple Music attribution -->
-    <text x="${WIDTH / 2}" y="${HEIGHT - 50}" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="400" fill="rgba(255,255,255,0.1)">Audio previews courtesy of Apple Music</text>
-  </svg>`;
+        // #1 picks list
+        {
+          type: 'div',
+          props: {
+            style: { display: 'flex', flexDirection: 'column' as const, gap: 30, padding: '0 80px' },
+            children: summaryRows,
+          },
+        },
 
-  return svgToFrame(svg);
+        // Push CTA to bottom area
+        { type: 'div', props: { style: { flex: 1 } } },
+
+        // CTA
+        { type: 'span', props: { style: { fontSize: 36, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }, children: 'Do you agree?' } },
+        { type: 'div', props: { style: { height: 60 } } },
+        { type: 'span', props: { style: { fontSize: 40, fontWeight: 700, color: 'white' }, children: 'Share yours at' } },
+        { type: 'div', props: { style: { height: 16 } } },
+        { type: 'span', props: { style: { fontSize: 44, fontWeight: 700, color: accentColor }, children: 'www.top4.info' } },
+        { type: 'div', props: { style: { height: 40 } } },
+
+        // Tagline
+        { type: 'span', props: { style: { fontSize: 26, fontWeight: 400, color: 'rgba(255,255,255,0.15)' }, children: 'Pick your top 4. See what everyone else loves.' } },
+        { type: 'div', props: { style: { height: 16 } } },
+
+        // Attribution
+        { type: 'span', props: { style: { fontSize: 18, fontWeight: 400, color: 'rgba(255,255,255,0.1)' }, children: 'Audio previews courtesy of Apple Music' } },
+        { type: 'div', props: { style: { height: 40 } } },
+      ],
+    },
+  };
+
+  return renderFrame(element);
 }

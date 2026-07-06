@@ -84,11 +84,31 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
     handleSave();
   }, [filename, displayName, userId]);
 
-  // Step 2b: Save/download
-  const handleSave = useCallback(() => {
+  // Step 2b: Save — prefer share sheet on mobile (saves to Photos), download on desktop
+  const handleSave = useCallback(async () => {
     const blob = blobRef.current;
     if (!blob) return;
 
+    // On mobile, use navigator.share with just the file — the share sheet
+    // surfaces "Save to Photos" as a top option, matching Instagram/TikTok UX
+    if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
+      const file = new File([blob], filename, { type: 'video/mp4' });
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] });
+          setState('idle');
+          blobRef.current = null;
+          return;
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') {
+            // User cancelled — stay in ready state
+            return;
+          }
+        }
+      }
+    }
+
+    // Desktop fallback: trigger a file download
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
@@ -168,7 +188,7 @@ export default function CreateVideoButton({ userId, displayName, compact, style 
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          Save
+          Save to Photos
         </button>
         <button
           type="button"
