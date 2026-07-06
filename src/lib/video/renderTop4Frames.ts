@@ -307,21 +307,21 @@ export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
         accentBar(cats.map(c => c.color)),
 
         // Top spacer
-        { type: 'div', props: { style: { height: 210 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 210 } } },
 
         // Logo
         logoElement(72),
 
         // Push content toward center
-        { type: 'div', props: { style: { flex: 1 } } },
+        { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
         // User name
         { type: 'span', props: { style: { fontSize: 44, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }, children: `${config.displayName}'s` } },
-        { type: 'div', props: { style: { height: 60 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
 
         // "Top 4"
         { type: 'span', props: { style: { fontSize: 100, fontWeight: 800, color: 'white', letterSpacing: -2 }, children: 'Top 4' } },
-        { type: 'div', props: { style: { height: 50 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 50 } } },
 
         // Category grid
         {
@@ -333,11 +333,11 @@ export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
         },
 
         // Push URL to bottom
-        { type: 'div', props: { style: { flex: 1 } } },
+        { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
         // URL
         urlFooter(),
-        { type: 'div', props: { style: { height: 100 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 100 } } },
       ],
     },
   };
@@ -379,13 +379,13 @@ export async function renderCategoryTitleFrame(
         {
           type: 'div',
           props: {
-            style: { position: 'absolute' as const, top: 60, left: 60 },
+            style: { display: 'flex', position: 'absolute' as const, top: 60, left: 60 },
             children: logoElement(42),
           },
         },
 
         // Push icon toward center
-        { type: 'div', props: { style: { flex: 1, minHeight: 400 } } },
+        { type: 'div', props: { style: { display: 'flex', flex: 1, minHeight: 400 } } },
 
         // Category icon in circle
         {
@@ -402,22 +402,22 @@ export async function renderCategoryTitleFrame(
           },
         },
 
-        { type: 'div', props: { style: { height: 80 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 80 } } },
 
         // Category label
         { type: 'span', props: { style: { fontSize: 80, fontWeight: 800, color: cat.color, letterSpacing: -1 }, children: cat.label } },
 
-        { type: 'div', props: { style: { height: 40 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 40 } } },
 
         // User name
         { type: 'span', props: { style: { fontSize: 32, fontWeight: 500, color: 'rgba(255,255,255,0.4)' }, children: config.displayName } },
 
         // Push URL to bottom
-        { type: 'div', props: { style: { flex: 1 } } },
+        { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
         // URL
         urlFooter(),
-        { type: 'div', props: { style: { height: 100 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 100 } } },
       ],
     },
   };
@@ -476,13 +476,13 @@ export async function renderItemFrame(
         accentBar(cat.color),
 
         // Logo (top-left)
-        { type: 'div', props: { style: { position: 'absolute' as const, top: 60, left: 60 }, children: logoElement(42) } },
+        { type: 'div', props: { style: { display: 'flex', position: 'absolute' as const, top: 60, left: 60 }, children: logoElement(42) } },
 
         // Category label (top-right)
         {
           type: 'div',
           props: {
-            style: { position: 'absolute' as const, top: 70, right: 60 },
+            style: { display: 'flex', position: 'absolute' as const, top: 70, right: 60 },
             children: { type: 'span', props: { style: { fontSize: 30, fontWeight: 600, color: cat.color }, children: cat.label } },
           },
         },
@@ -502,8 +502,8 @@ export async function renderItemFrame(
         }),
 
         // Spacer for image area (image composited by sharp later)
-        { type: 'div', props: { style: { height: isNumber1 ? 340 : 380 } } },
-        { type: 'div', props: { style: { height: (isNumber1 ? 320 : 260) + 60 } } }, // image height + gap
+        { type: 'div', props: { style: { display: 'flex', height: isNumber1 ? 340 : 380 } } },
+        { type: 'div', props: { style: { display: 'flex', height: (isNumber1 ? 320 : 260) + 60 } } }, // image height + gap
 
         // Title
         {
@@ -539,15 +539,15 @@ export async function renderItemFrame(
         }] : []),
 
         // Push footer to bottom
-        { type: 'div', props: { style: { flex: 1 } } },
+        { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
         // User name
         { type: 'span', props: { style: { fontSize: 28, fontWeight: 500, color: 'rgba(255,255,255,0.4)' }, children: config.displayName } },
-        { type: 'div', props: { style: { height: 40 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 40 } } },
 
         // URL
         urlFooter(),
-        { type: 'div', props: { style: { height: 100 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 100 } } },
       ],
     },
   };
@@ -640,27 +640,27 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
         },
 
         // Top spacer
-        { type: 'div', props: { style: { height: 210 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 210 } } },
 
         // Logo
         logoElement(72),
 
-        { type: 'div', props: { style: { height: 120 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 120 } } },
 
         // "David's #1 picks"
         { type: 'span', props: { style: { fontSize: 38, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }, children: `${config.displayName}'s #1 picks` } },
 
-        { type: 'div', props: { style: { height: 60 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
 
         // Divider
         {
           type: 'div',
           props: {
-            style: { width: 400, height: 2, backgroundColor: hexToRgba(accentColor, 0.3) },
+            style: { display: 'flex', width: 400, height: 2, backgroundColor: hexToRgba(accentColor, 0.3) },
           },
         },
 
-        { type: 'div', props: { style: { height: 60 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
 
         // #1 picks list
         {
@@ -672,23 +672,23 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
         },
 
         // Push CTA to bottom area
-        { type: 'div', props: { style: { flex: 1 } } },
+        { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
         // CTA
         { type: 'span', props: { style: { fontSize: 36, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }, children: 'Do you agree?' } },
-        { type: 'div', props: { style: { height: 60 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
         { type: 'span', props: { style: { fontSize: 40, fontWeight: 700, color: 'white' }, children: 'Share yours at' } },
-        { type: 'div', props: { style: { height: 16 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 16 } } },
         { type: 'span', props: { style: { fontSize: 44, fontWeight: 700, color: accentColor }, children: 'www.top4.info' } },
-        { type: 'div', props: { style: { height: 40 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 40 } } },
 
         // Tagline
         { type: 'span', props: { style: { fontSize: 26, fontWeight: 400, color: 'rgba(255,255,255,0.15)' }, children: 'Pick your top 4. See what everyone else loves.' } },
-        { type: 'div', props: { style: { height: 16 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 16 } } },
 
         // Attribution
         { type: 'span', props: { style: { fontSize: 18, fontWeight: 400, color: 'rgba(255,255,255,0.1)' }, children: 'Audio previews courtesy of Apple Music' } },
-        { type: 'div', props: { style: { height: 40 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 40 } } },
       ],
     },
   };
