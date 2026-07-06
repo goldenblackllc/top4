@@ -39,7 +39,8 @@ const CLOSING_DURATION = 3;
 
 // Audio fade duration for smooth transitions between clips
 const AUDIO_FADE_DURATION = 0.3;
-const AUDIO_SKIP = 5; // skip first 5s of preview (intros/silence)
+const AUDIO_SKIP_MUSIC = 5; // skip first 5s for artists/movies (intros/silence)
+// TV shows and books play from the start — their previews are already curated
 
 /**
  * GET /api/video/[userId]
@@ -188,7 +189,8 @@ export async function GET(
     const framePaths: string[] = [];
     const frameDurations: number[] = [];
     // Track which audio clip goes with each frame (null = silence)
-    const frameAudioPaths: (string | null)[] = [];
+    // Each entry includes the category so we can set per-category audio skip
+    const frameAudioEntries: { path: string | null; category: string }[] = [];
     let frameIdx = 0;
 
     // Find the top artist's audio for hook/closing (first artist = #1 pick)
@@ -201,7 +203,7 @@ export async function GET(
     await fs.writeFile(hookPath, await renderHookFrame(videoConfig));
     framePaths.push(hookPath);
     frameDurations.push(HOOK_DURATION);
-    frameAudioPaths.push(topArtistAudio);
+    frameAudioEntries.push({ path: topArtistAudio, category: 'artists' });
 
     // 2. Per-category: title + items (reverse order for countdown: #4, #3, #2, #1)
     for (const cat of categoryDataList) {
@@ -211,7 +213,7 @@ export async function GET(
       framePaths.push(titlePath);
       frameDurations.push(CATEGORY_TITLE_DURATION);
       const lastItemIdx = cat.items.length - 1;
-      frameAudioPaths.push(cat.audioPaths[lastItemIdx] || topArtistAudio);
+      frameAudioEntries.push({ path: cat.audioPaths[lastItemIdx] || topArtistAudio, category: cat.category });
 
       // Items in reverse: #4, #3, #2, #1
       const itemCount = cat.items.length;
@@ -221,7 +223,7 @@ export async function GET(
         framePaths.push(itemPath);
         frameDurations.push(i === 0 ? NUMBER_1_DURATION : ITEM_DURATION);
         // Fall back to #1 artist's audio if no audio for this item
-        frameAudioPaths.push(cat.audioPaths[i] || topArtistAudio);
+        frameAudioEntries.push({ path: cat.audioPaths[i] || topArtistAudio, category: cat.category });
       }
     }
 
@@ -230,7 +232,7 @@ export async function GET(
     await fs.writeFile(closingPath, await renderClosingFrame(videoConfig));
     framePaths.push(closingPath);
     frameDurations.push(CLOSING_DURATION);
-    frameAudioPaths.push(topArtistAudio);
+    frameAudioEntries.push({ path: topArtistAudio, category: 'artists' });
 
     console.log(`[Video] Rendered ${framePaths.length} frames`);
 
@@ -250,9 +252,9 @@ export async function GET(
     console.log('[Video] ffmpeg:', ffmpegPath);
 
     // ── Check if we have any audio clips ──
-    const hasAnyAudio = frameAudioPaths.some(p => p !== null);
-    const audioFrameCount = frameAudioPaths.filter(p => p !== null).length;
-    console.log(`[Video] Audio clips mapped to frames: ${audioFrameCount}/${frameAudioPaths.length}`);
+    const hasAnyAudio = frameAudioEntries.some(e => e.path !== null);
+    const audioFrameCount = frameAudioEntries.filter(e => e.path !== null).length;
+    console.log(`[Video] Audio clips mapped to frames: ${audioFrameCount}/${frameAudioEntries.length}`);
 
     // ── Build audio track if we have audio clips ──
     let audioTrackPath: string | null = null;
@@ -264,7 +266,7 @@ export async function GET(
         spawnSync,
         workDir,
         frameDurations,
-        frameAudioPaths,
+        frameAudioEntries,
       );
       if (audioTrackPath) {
         console.log('[Video] Audio track built successfully');
@@ -374,7 +376,7 @@ function buildAudioTrack(
   spawnSync: typeof import('child_process').spawnSync,
   workDir: string,
   frameDurations: number[],
-  frameAudioPaths: (string | null)[],
+  frameAudioEntries: { path: string | null; category: string }[],
 ): string | null {
   try {
     // Collect unique audio file inputs (deduplicate for -i flags)
@@ -387,27 +389,35 @@ function buildAudioTrack(
     let nextInputIdx = 1;
 
     // Add unique audio files as inputs
-    for (const audioPath of frameAudioPaths) {
-      if (audioPath && !audioInputMap.has(audioPath)) {
-        inputs.push('-i', audioPath);
-        audioInputMap.set(audioPath, nextInputIdx);
+    for (const entry of frameAudioEntries) {
+      if (entry.path && !audioInputMap.has(entry.path)) {
+        inputs.push('-i', entry.path);
+        audioInputMap.set(entry.path, nextInputIdx);
         nextInputIdx++;
       }
     }
 
+    // Determine audio skip per category:
+    // Artists/Movies: skip 5s (to get past intros/silence)
+    // TV/Books: no skip (previews are already curated)
+    function getSkipForCategory(category: string): number {
+      return (category === 'tv' || category === 'books') ? 0 : AUDIO_SKIP_MUSIC;
+    }
+
     // Merge consecutive frames with the same audio source into groups
     // This avoids fade-out/fade-in gaps (e.g. category title + #4 item same song)
-    interface AudioGroup { audioPath: string | null; totalDuration: number; }
+    interface AudioGroup { audioPath: string | null; totalDuration: number; skip: number; }
     const groups: AudioGroup[] = [];
 
     for (let i = 0; i < frameDurations.length; i++) {
-      const audioPath = frameAudioPaths[i];
+      const { path: audioPath, category } = frameAudioEntries[i];
+      const skip = getSkipForCategory(category);
       const prev = groups[groups.length - 1];
       // Merge if same audio source as previous group (and not silence)
       if (prev && audioPath && prev.audioPath === audioPath) {
         prev.totalDuration += frameDurations[i];
       } else {
-        groups.push({ audioPath, totalDuration: frameDurations[i] });
+        groups.push({ audioPath, totalDuration: frameDurations[i], skip });
       }
     }
 
@@ -416,14 +426,14 @@ function buildAudioTrack(
     const concatInputs: string[] = [];
 
     for (let g = 0; g < groups.length; g++) {
-      const { audioPath, totalDuration } = groups[g];
+      const { audioPath, totalDuration, skip } = groups[g];
       const label = `seg${g}`;
 
       if (audioPath && audioInputMap.has(audioPath)) {
         const inputIdx = audioInputMap.get(audioPath)!;
         const fadeOutStart = Math.max(0, totalDuration - AUDIO_FADE_DURATION);
         filterParts.push(
-          `[${inputIdx}:a]atrim=start=${AUDIO_SKIP}:end=${AUDIO_SKIP + totalDuration},asetpts=PTS-STARTPTS,afade=t=in:d=${AUDIO_FADE_DURATION},afade=t=out:st=${fadeOutStart.toFixed(3)}:d=${AUDIO_FADE_DURATION}[${label}]`
+          `[${inputIdx}:a]atrim=start=${skip}:end=${skip + totalDuration},asetpts=PTS-STARTPTS,afade=t=in:d=${AUDIO_FADE_DURATION},afade=t=out:st=${fadeOutStart.toFixed(3)}:d=${AUDIO_FADE_DURATION}[${label}]`
         );
       } else {
         filterParts.push(

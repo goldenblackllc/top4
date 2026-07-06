@@ -135,7 +135,7 @@ function accentBar(colors: string | string[]) {
     props: {
       style: {
         position: 'absolute' as const, top: 0, left: 0,
-        width: '100%', height: 6,
+        width: '100%', height: 8,
         backgroundImage: gradient,
       },
     },
@@ -143,7 +143,7 @@ function accentBar(colors: string | string[]) {
 }
 
 /** "top4" logo — "top" in white + "4" with gradient fill */
-function logoElement(size: number = 72) {
+function logoElement(size: number = 96) {
   return {
     type: 'div',
     props: {
@@ -178,23 +178,8 @@ function urlFooter() {
   return {
     type: 'span',
     props: {
-      style: { fontSize: 28, fontWeight: 400, color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter' },
+      style: { fontSize: 38, fontWeight: 500, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter' },
       children: 'www.top4.info',
-    },
-  };
-}
-
-/** Absolutely-positioned, horizontally centered wrapper */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function centered(top: number, child: any) {
-  return {
-    type: 'div',
-    props: {
-      style: {
-        position: 'absolute' as const, top, left: 0, width: '100%',
-        display: 'flex', justifyContent: 'center', alignItems: 'center',
-      },
-      children: child,
     },
   };
 }
@@ -265,7 +250,7 @@ export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
       props: {
         style: {
           position: 'absolute' as const, top: 0, left: 0, width: '100%', height: '100%',
-          backgroundImage: `radial-gradient(circle at ${cx}% 42%, ${hexToRgba(c.color, 0.1)} 0%, transparent 70%)`,
+          backgroundImage: `radial-gradient(circle at ${cx}% 42%, ${hexToRgba(c.color, 0.15)} 0%, transparent 60%)`,
         },
       },
     };
@@ -277,17 +262,17 @@ export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
     const row = cats.slice(i, i + 2).map(c => ({
       type: 'div',
       props: {
-        style: { display: 'flex', alignItems: 'center', gap: 8, width: 220, fontFamily: 'Inter' },
+        style: { display: 'flex', alignItems: 'center', gap: 12, width: 280, fontFamily: 'Inter' },
         children: [
-          categoryIconElement(c.category, 32, c.color),
-          { type: 'span', props: { style: { fontSize: 32, fontWeight: 600, color: c.color }, children: c.label } },
+          categoryIconElement(c.category, 44, c.color),
+          { type: 'span', props: { style: { fontSize: 44, fontWeight: 600, color: c.color }, children: c.label } },
         ],
       },
     }));
     categoryRows.push({
       type: 'div',
       props: {
-        style: { display: 'flex', justifyContent: 'center', gap: 40 },
+        style: { display: 'flex', justifyContent: 'center', gap: 60 },
         children: row,
       },
     });
@@ -306,28 +291,26 @@ export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
         ...glowElements,
         accentBar(cats.map(c => c.color)),
 
-        // Top spacer
-        { type: 'div', props: { style: { display: 'flex', height: 210 } } },
-
-        // Logo
-        logoElement(72),
+        // Logo at top
+        { type: 'div', props: { style: { display: 'flex', height: 140 } } },
+        logoElement(96),
 
         // Push content toward center
         { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
         // User name
-        { type: 'span', props: { style: { fontSize: 44, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }, children: `${config.displayName}'s` } },
-        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
+        { type: 'span', props: { style: { fontSize: 56, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }, children: `${config.displayName}'s` } },
+        { type: 'div', props: { style: { display: 'flex', height: 40 } } },
 
         // "Top 4"
-        { type: 'span', props: { style: { fontSize: 100, fontWeight: 800, color: 'white', letterSpacing: -2 }, children: 'Top 4' } },
-        { type: 'div', props: { style: { display: 'flex', height: 50 } } },
+        { type: 'span', props: { style: { fontSize: 140, fontWeight: 900, color: 'white', letterSpacing: -4 }, children: 'Top 4' } },
+        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
 
         // Category grid
         {
           type: 'div',
           props: {
-            style: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 16 },
+            style: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 20 },
             children: categoryRows,
           },
         },
@@ -335,9 +318,9 @@ export async function renderHookFrame(config: VideoConfig): Promise<Buffer> {
         // Push URL to bottom
         { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
-        // URL
+        // URL + user name footer
         urlFooter(),
-        { type: 'div', props: { style: { display: 'flex', height: 100 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 80 } } },
       ],
     },
   };
@@ -367,7 +350,7 @@ export async function renderCategoryTitleFrame(
           props: {
             style: {
               position: 'absolute' as const, top: 0, left: 0, width: '100%', height: '100%',
-              backgroundImage: `radial-gradient(circle at 50% 45%, ${hexToRgba(cat.color, 0.18)} 0%, transparent 70%)`,
+              backgroundImage: `radial-gradient(circle at 50% 45%, ${hexToRgba(cat.color, 0.22)} 0%, transparent 60%)`,
             },
           },
         },
@@ -379,45 +362,45 @@ export async function renderCategoryTitleFrame(
         {
           type: 'div',
           props: {
-            style: { display: 'flex', position: 'absolute' as const, top: 60, left: 60 },
-            children: logoElement(42),
+            style: { display: 'flex', position: 'absolute' as const, top: 50, left: 50 },
+            children: logoElement(56),
           },
         },
 
         // Push icon toward center
-        { type: 'div', props: { style: { display: 'flex', flex: 1, minHeight: 400 } } },
+        { type: 'div', props: { style: { display: 'flex', flex: 1, minHeight: 350 } } },
 
         // Category icon in circle
         {
           type: 'div',
           props: {
             style: {
-              width: 240, height: 240,
-              borderRadius: 120,
+              width: 300, height: 300,
+              borderRadius: 150,
               backgroundColor: hexToRgba(cat.color, 0.15),
-              border: `3px solid ${hexToRgba(cat.color, 0.4)}`,
+              border: `4px solid ${hexToRgba(cat.color, 0.4)}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             },
-            children: categoryIconElement(cat.category, 160, cat.color),
+            children: categoryIconElement(cat.category, 200, cat.color),
           },
         },
 
-        { type: 'div', props: { style: { display: 'flex', height: 80 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
 
         // Category label
-        { type: 'span', props: { style: { fontSize: 80, fontWeight: 800, color: cat.color, letterSpacing: -1 }, children: cat.label } },
+        { type: 'span', props: { style: { fontSize: 100, fontWeight: 800, color: cat.color, letterSpacing: -1 }, children: cat.label } },
 
-        { type: 'div', props: { style: { display: 'flex', height: 40 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 30 } } },
 
         // User name
-        { type: 'span', props: { style: { fontSize: 32, fontWeight: 500, color: 'rgba(255,255,255,0.4)' }, children: config.displayName } },
+        { type: 'span', props: { style: { fontSize: 44, fontWeight: 500, color: 'rgba(255,255,255,0.5)' }, children: config.displayName } },
 
         // Push URL to bottom
         { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
         // URL
         urlFooter(),
-        { type: 'div', props: { style: { display: 'flex', height: 100 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 80 } } },
       ],
     },
   };
@@ -427,6 +410,14 @@ export async function renderCategoryTitleFrame(
 
 /**
  * Item reveal frame — "#4: Genesis"
+ *
+ * Layout (top to bottom):
+ *   Logo (top-left)  |  Category (top-right)
+ *   Rank number "#2" (large, visible, above image)
+ *   Item image (large)
+ *   Title
+ *   Subtitle
+ *   User name + URL footer
  */
 export async function renderItemFrame(
   config: VideoConfig,
@@ -441,16 +432,27 @@ export async function renderItemFrame(
   const imagePath = cat.imagePaths[itemIndex];
   const isArtist = cat.category === 'artists';
 
-  // Dynamic title font sizing (same logic as before)
-  const title = item.title.length > 52 ? item.title.slice(0, 50) + '\u2026' : item.title;
-  const baseFontSize = isNumber1 ? 72 : 64;
-  const titleFontSize = item.title.length > 40 ? Math.floor(baseFontSize * 0.6) :
-                        item.title.length > 30 ? Math.floor(baseFontSize * 0.7) :
+  // Dynamic title font sizing — allow longer titles, multi-line wrapping
+  const title = item.title.length > 60 ? item.title.slice(0, 58) + '\u2026' : item.title;
+  const baseFontSize = isNumber1 ? 80 : 72;
+  const titleFontSize = item.title.length > 40 ? Math.floor(baseFontSize * 0.65) :
+                        item.title.length > 30 ? Math.floor(baseFontSize * 0.75) :
                         item.title.length > 22 ? Math.floor(baseFontSize * 0.85) : baseFontSize;
 
   const subtitle = item.subtitle
-    ? (item.subtitle.length > 40 ? item.subtitle.slice(0, 38) + '\u2026' : item.subtitle)
+    ? (item.subtitle.length > 50 ? item.subtitle.slice(0, 48) + '\u2026' : item.subtitle)
     : null;
+
+  // Rank number color — high contrast, always visible
+  const rankColor = isNumber1
+    ? cat.color  // #1 gets full accent color
+    : hexToRgba(cat.color, 0.5);  // others get semi-transparent accent (NOT dark gray)
+
+  // Image dimensions — bigger for better visibility
+  const imgSize = isNumber1 ? 420 : 360;
+  const imgTop = 460;  // fixed top position for image placeholder
+  const imgLeft = Math.floor((WIDTH - imgSize) / 2);
+  const borderRadius = isArtist ? imgSize / 2 : 28;
 
   const element = {
     type: 'div',
@@ -461,55 +463,67 @@ export async function renderItemFrame(
         backgroundColor: '#08080d', fontFamily: 'Inter', position: 'relative' as const,
       },
       children: [
-        // Radial glow for #1
-        ...(isNumber1 ? [{
+        // Radial glow (stronger for #1)
+        {
           type: 'div',
           props: {
             style: {
               position: 'absolute' as const, top: 0, left: 0, width: '100%', height: '100%',
-              backgroundImage: `radial-gradient(circle at 50% 50%, ${hexToRgba(cat.color, 0.2)} 0%, transparent 70%)`,
+              backgroundImage: `radial-gradient(circle at 50% 45%, ${hexToRgba(cat.color, isNumber1 ? 0.25 : 0.12)} 0%, transparent 60%)`,
             },
           },
-        }] : []),
+        },
 
         // Accent bar
         accentBar(cat.color),
 
         // Logo (top-left)
-        { type: 'div', props: { style: { display: 'flex', position: 'absolute' as const, top: 60, left: 60 }, children: logoElement(42) } },
+        { type: 'div', props: { style: { display: 'flex', position: 'absolute' as const, top: 50, left: 50 }, children: logoElement(56) } },
 
         // Category label (top-right)
         {
           type: 'div',
           props: {
-            style: { display: 'flex', position: 'absolute' as const, top: 70, right: 60 },
-            children: { type: 'span', props: { style: { fontSize: 30, fontWeight: 600, color: cat.color }, children: cat.label } },
+            style: { display: 'flex', position: 'absolute' as const, top: 60, right: 50 },
+            children: { type: 'span', props: { style: { fontSize: 42, fontWeight: 700, color: cat.color }, children: cat.label } },
           },
         },
 
-        // Big rank number (absolutely positioned background watermark)
-        centered(isNumber1 ? 620 : 560, {
-          type: 'span',
-          props: {
-            style: {
-              fontSize: isNumber1 ? 200 : 180,
-              fontWeight: 900,
-              color: isNumber1 ? cat.color : 'rgba(255,255,255,0.08)',
-              letterSpacing: -5,
-            },
-            children: `#${rank}`,
-          },
-        }),
+        // Top spacer (space for logo bar)
+        { type: 'div', props: { style: { display: 'flex', height: 160 } } },
 
-        // Spacer for image area (image composited by sharp later)
-        { type: 'div', props: { style: { display: 'flex', height: isNumber1 ? 340 : 380 } } },
-        { type: 'div', props: { style: { display: 'flex', height: (isNumber1 ? 320 : 260) + 60 } } }, // image height + gap
-
-        // Title
+        // Rank number — large, visible, ABOVE the image
         {
           type: 'div',
           props: {
-            style: { display: 'flex', justifyContent: 'center', width: '100%', padding: '0 60px' },
+            style: { display: 'flex', justifyContent: 'center', width: '100%' },
+            children: {
+              type: 'span',
+              props: {
+                style: {
+                  fontSize: isNumber1 ? 160 : 140,
+                  fontWeight: 900,
+                  color: rankColor,
+                  letterSpacing: -4,
+                },
+                children: `#${rank}`,
+              },
+            },
+          },
+        },
+
+        { type: 'div', props: { style: { display: 'flex', height: 20 } } },
+
+        // Image placeholder spacer (image composited by sharp below)
+        { type: 'div', props: { style: { display: 'flex', height: imgSize } } },
+
+        { type: 'div', props: { style: { display: 'flex', height: 40 } } },
+
+        // Title — larger, allows wrapping
+        {
+          type: 'div',
+          props: {
+            style: { display: 'flex', justifyContent: 'center', width: '100%', padding: '0 80px' },
             children: {
               type: 'span',
               props: {
@@ -527,11 +541,11 @@ export async function renderItemFrame(
         ...(subtitle ? [{
           type: 'div',
           props: {
-            style: { display: 'flex', justifyContent: 'center', width: '100%', marginTop: 16, padding: '0 60px' },
+            style: { display: 'flex', justifyContent: 'center', width: '100%', marginTop: 16, padding: '0 80px' },
             children: {
               type: 'span',
               props: {
-                style: { fontSize: 36, fontWeight: 400, color: 'rgba(255,255,255,0.5)', textAlign: 'center' as const },
+                style: { fontSize: 44, fontWeight: 400, color: 'rgba(255,255,255,0.55)', textAlign: 'center' as const },
                 children: subtitle,
               },
             },
@@ -542,26 +556,21 @@ export async function renderItemFrame(
         { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
         // User name
-        { type: 'span', props: { style: { fontSize: 28, fontWeight: 500, color: 'rgba(255,255,255,0.4)' }, children: config.displayName } },
-        { type: 'div', props: { style: { display: 'flex', height: 40 } } },
+        { type: 'span', props: { style: { fontSize: 38, fontWeight: 500, color: 'rgba(255,255,255,0.5)' }, children: config.displayName } },
+        { type: 'div', props: { style: { display: 'flex', height: 20 } } },
 
         // URL
         urlFooter(),
-        { type: 'div', props: { style: { display: 'flex', height: 100 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 80 } } },
       ],
     },
   };
 
-  // ── Image composite (same approach as before) ──
+  // ── Image composite (same approach as before, bigger size) ──
   const composites: sharp.OverlayOptions[] = [];
 
   if (imagePath) {
     try {
-      const imgSize = isNumber1 ? 320 : 260;
-      const imgTop = isNumber1 ? 340 : 380;
-      const imgLeft = Math.floor((WIDTH - imgSize) / 2);
-      const borderRadius = isArtist ? imgSize / 2 : 24;
-
       // Pre-render mask SVG (simple shape, no text — works everywhere)
       const roundedMaskPng = await renderSvgToPng(
         `<svg width="${imgSize}" height="${imgSize}"><rect width="${imgSize}" height="${imgSize}" rx="${borderRadius}" ry="${borderRadius}" fill="white"/></svg>`,
@@ -577,7 +586,7 @@ export async function renderItemFrame(
       const borderSize = imgSize + 8;
       const borderPng = await renderSvgToPng(
         `<svg width="${borderSize}" height="${borderSize}">
-          <rect x="0" y="0" width="${borderSize}" height="${borderSize}" rx="${borderRadius + 4}" ry="${borderRadius + 4}" fill="none" stroke="${isNumber1 ? cat.color : 'rgba(255,255,255,0.15)'}" stroke-width="3"/>
+          <rect x="0" y="0" width="${borderSize}" height="${borderSize}" rx="${borderRadius + 4}" ry="${borderRadius + 4}" fill="none" stroke="${isNumber1 ? cat.color : 'rgba(255,255,255,0.2)'}" stroke-width="4"/>
         </svg>`,
         borderSize, borderSize
       );
@@ -587,7 +596,7 @@ export async function renderItemFrame(
         { input: roundedImg, top: imgTop, left: imgLeft }
       );
     } catch {
-      // Image failed — rank number is already visible in background
+      // Image failed — rank number is already visible above
     }
   }
 
@@ -604,16 +613,16 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
   const summaryRows = config.categories.map(cat => {
     const topPick = cat.items[0];
     const pickTitle = topPick
-      ? (topPick.title.length > 20 ? topPick.title.slice(0, 18) + '\u2026' : topPick.title)
+      ? (topPick.title.length > 24 ? topPick.title.slice(0, 22) + '\u2026' : topPick.title)
       : '\u2014';
 
     return {
       type: 'div',
       props: {
-        style: { display: 'flex', alignItems: 'center', gap: 16, fontFamily: 'Inter' },
+        style: { display: 'flex', alignItems: 'center', gap: 20, fontFamily: 'Inter' },
         children: [
-          categoryIconElement(cat.category, 48, cat.color),
-          { type: 'span', props: { style: { fontSize: 42, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }, children: pickTitle } },
+          categoryIconElement(cat.category, 56, cat.color),
+          { type: 'span', props: { style: { fontSize: 50, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }, children: pickTitle } },
         ],
       },
     };
@@ -634,39 +643,39 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
           props: {
             style: {
               position: 'absolute' as const, top: 0, left: 0, width: '100%', height: '100%',
-              backgroundImage: `radial-gradient(circle at 50% 40%, ${hexToRgba(accentColor, 0.1)} 0%, transparent 70%)`,
+              backgroundImage: `radial-gradient(circle at 50% 40%, ${hexToRgba(accentColor, 0.15)} 0%, transparent 60%)`,
             },
           },
         },
 
         // Top spacer
-        { type: 'div', props: { style: { display: 'flex', height: 210 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 140 } } },
 
         // Logo
-        logoElement(72),
+        logoElement(96),
 
-        { type: 'div', props: { style: { display: 'flex', height: 120 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 80 } } },
 
         // "David's #1 picks"
-        { type: 'span', props: { style: { fontSize: 38, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }, children: `${config.displayName}'s #1 picks` } },
+        { type: 'span', props: { style: { fontSize: 48, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }, children: `${config.displayName}'s #1 picks` } },
 
-        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 50 } } },
 
         // Divider
         {
           type: 'div',
           props: {
-            style: { display: 'flex', width: 400, height: 2, backgroundColor: hexToRgba(accentColor, 0.3) },
+            style: { display: 'flex', width: 500, height: 3, backgroundColor: hexToRgba(accentColor, 0.35) },
           },
         },
 
-        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
+        { type: 'div', props: { style: { display: 'flex', height: 50 } } },
 
         // #1 picks list
         {
           type: 'div',
           props: {
-            style: { display: 'flex', flexDirection: 'column' as const, gap: 30, padding: '0 80px' },
+            style: { display: 'flex', flexDirection: 'column' as const, gap: 36, padding: '0 80px' },
             children: summaryRows,
           },
         },
@@ -675,19 +684,19 @@ export async function renderClosingFrame(config: VideoConfig): Promise<Buffer> {
         { type: 'div', props: { style: { display: 'flex', flex: 1 } } },
 
         // CTA
-        { type: 'span', props: { style: { fontSize: 36, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }, children: 'Do you agree?' } },
-        { type: 'div', props: { style: { display: 'flex', height: 60 } } },
-        { type: 'span', props: { style: { fontSize: 40, fontWeight: 700, color: 'white' }, children: 'Share yours at' } },
-        { type: 'div', props: { style: { display: 'flex', height: 16 } } },
-        { type: 'span', props: { style: { fontSize: 44, fontWeight: 700, color: accentColor }, children: 'www.top4.info' } },
+        { type: 'span', props: { style: { fontSize: 44, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }, children: 'Do you agree?' } },
+        { type: 'div', props: { style: { display: 'flex', height: 40 } } },
+        { type: 'span', props: { style: { fontSize: 50, fontWeight: 700, color: 'white' }, children: 'Share yours at' } },
+        { type: 'div', props: { style: { display: 'flex', height: 12 } } },
+        { type: 'span', props: { style: { fontSize: 54, fontWeight: 700, color: accentColor }, children: 'www.top4.info' } },
         { type: 'div', props: { style: { display: 'flex', height: 40 } } },
 
         // Tagline
-        { type: 'span', props: { style: { fontSize: 26, fontWeight: 400, color: 'rgba(255,255,255,0.15)' }, children: 'Pick your top 4. See what everyone else loves.' } },
-        { type: 'div', props: { style: { display: 'flex', height: 16 } } },
+        { type: 'span', props: { style: { fontSize: 32, fontWeight: 400, color: 'rgba(255,255,255,0.2)' }, children: 'Pick your top 4. See what everyone else loves.' } },
+        { type: 'div', props: { style: { display: 'flex', height: 12 } } },
 
         // Attribution
-        { type: 'span', props: { style: { fontSize: 18, fontWeight: 400, color: 'rgba(255,255,255,0.1)' }, children: 'Audio previews courtesy of Apple Music' } },
+        { type: 'span', props: { style: { fontSize: 22, fontWeight: 400, color: 'rgba(255,255,255,0.12)' }, children: 'Audio previews courtesy of Apple Music' } },
         { type: 'div', props: { style: { display: 'flex', height: 40 } } },
       ],
     },
