@@ -125,13 +125,15 @@ async function renderFrame(element: any, extraComposites?: sharp.OverlayOptions[
 
 // ── Layout Constants ─────────────────────────────────────────
 // These are tuned for 1080×1920 design space viewed on small mobile screens.
-// The logo is pushed below the status bar area.
+// Instagram/TikTok overlay UI on the top ~250px (username, music label) and
+// bottom ~280px (action buttons, captions, nav bar). All important content
+// must stay within this "safe zone".
 
-const LOGO_TOP = 120;        // Below mobile status bar
-const LOGO_SIZE = 60;        // Logo font size
-const FOOTER_BOTTOM = 80;    // Bottom padding for footer
-const FOOTER_NAME_SIZE = 48; // User name in footer
-const FOOTER_URL_SIZE = 48;  // URL in footer
+const LOGO_TOP = 230;         // Below social media top chrome (username/music bar)
+const LOGO_SIZE = 60;         // Logo font size
+const FOOTER_BOTTOM = 280;    // Above social media bottom chrome (buttons/captions)
+const FOOTER_NAME_SIZE = 48;  // User name in footer
+const FOOTER_URL_SIZE = 48;   // URL in footer
 
 // ── Reusable Element Builders ────────────────────────────────
 
@@ -463,7 +465,7 @@ export async function renderItemFrame(
 
   // ── Layout measurements ──
   // These must stay in sync between the Satori spacers and the sharp composite position.
-  const HEADER_AREA = 260;   // Space for logo + status bar (matches LOGO_TOP + logo height + gap)
+  const HEADER_AREA = 360;   // Space for logo + social media top chrome (matches LOGO_TOP + logo height + gap)
   const RANK_FONT = isNumber1 ? 150 : 130;
   const RANK_HEIGHT = Math.ceil(RANK_FONT * 1.3); // Approximate rendered height
   const RANK_GAP = 20;
