@@ -6,6 +6,7 @@ import { auth } from '@/lib/firebase/config';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale } from '@/lib/i18n';
+import Turnstile from '@/components/auth/Turnstile';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +30,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone.trim() }),
+        body: JSON.stringify({ phone: phone.trim(), turnstileToken }),
       });
 
       const data = await res.json();
@@ -36,6 +38,7 @@ export default function LoginPage() {
       if (!res.ok) {
         setStatus('error');
         setErrorMsg(data.error || t('login.failedSendCode'));
+        setTurnstileToken(null);
         return;
       }
 
@@ -45,6 +48,7 @@ export default function LoginPage() {
     } catch {
       setStatus('error');
       setErrorMsg(t('login.failedSendRetry'));
+      setTurnstileToken(null);
     }
   };
 
@@ -133,10 +137,17 @@ export default function LoginPage() {
               </p>
             )}
 
+            <Turnstile
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              theme="dark"
+              className="mb-4"
+            />
+
             <button
               type="submit"
               className="btn-primary"
-              disabled={status === 'loading'}
+              disabled={status === 'loading' || !turnstileToken}
               style={{ width: '100%', justifyContent: 'center' }}
             >
               {status === 'loading' ? t('login.sending') : t('login.sendCode')}
