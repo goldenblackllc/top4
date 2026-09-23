@@ -8,14 +8,50 @@ const client = twilio(
 const VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID!;
 const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
 
-/**
- * Verify a Cloudflare Turnstile token server-side.
- * Returns true if the token is valid, false otherwise.
- */
+// ── Rate Limiting ──────────────────────────────────────────────────
+// Defense-in-depth: even if Turnstile passes, limit how many OTPs
+// can be sent per IP and globally. In-memory store resets on cold
+// starts, but catches sustained attacks within a function instance.
+
+const ipBuckets = new Map<string, number[]>();
+const globalBucket: number[] = [];
+
+const IP_LIMIT = 3;         // max 3 sends per IP per window
+const GLOBAL_LIMIT = 30;    // max 30 sends globally per window
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+function isRateLimited(ip: string): { limited: boolean; reason?: string } {
+  const now = Date.now();
+  const cutoff = now - WINDOW_MS;
+
+  // Clean and check IP bucket
+  const ipTimestamps = (ipBuckets.get(ip) || []).filter(t => t > cutoff);
+  if (ipTimestamps.length >= IP_LIMIT) {
+    return { limited: true, reason: `IP ${ip} exceeded ${IP_LIMIT} requests` };
+  }
+
+  // Clean and check global bucket
+  while (globalBucket.length > 0 && globalBucket[0] <= cutoff) {
+    globalBucket.shift();
+  }
+  if (globalBucket.length >= GLOBAL_LIMIT) {
+    return { limited: true, reason: 'Global rate limit exceeded' };
+  }
+
+  // Record this request
+  ipTimestamps.push(now);
+  ipBuckets.set(ip, ipTimestamps);
+  globalBucket.push(now);
+
+  return { limited: false };
+}
+
+// ── Turnstile Verification ─────────────────────────────────────────
+
 async function verifyTurnstileToken(token: string, ip: string): Promise<boolean> {
     if (!TURNSTILE_SECRET_KEY) {
         console.warn('[send-code] TURNSTILE_SECRET_KEY not set — skipping Turnstile verification');
-        return true; // Allow in dev/staging when key isn't configured
+        return true;
     }
 
     try {
@@ -36,12 +72,25 @@ async function verifyTurnstileToken(token: string, ip: string): Promise<boolean>
     }
 }
 
+// ── Route Handler ──────────────────────────────────────────────────
+
 export async function POST(req: Request) {
   try {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+
+    // Layer 1: Rate limiting (before parsing body, before Turnstile)
+    const rateCheck = isRateLimited(ip);
+    if (rateCheck.limited) {
+        console.warn(`[send-code] Rate limited: ${rateCheck.reason}`);
+        return Response.json(
+            { error: 'Too many requests. Please try again later.' },
+            { status: 429, headers: { 'Retry-After': '900' } }
+        );
+    }
+
     const { phone, turnstileToken } = await req.json();
 
-    // Verify Turnstile token (bot protection)
+    // Layer 2: Turnstile verification
     if (TURNSTILE_SECRET_KEY) {
         if (!turnstileToken) {
             return Response.json({ error: 'Security verification required.' }, { status: 403 });
@@ -83,3 +132,4 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Failed to send verification code.' }, { status: 500 });
   }
 }
+
